@@ -1222,7 +1222,7 @@ function sampleRec(t, out) {
 
 function startReplay(pr) {
   replay.on = true; replay.kind = pr.kind;
-  replay.t0 = Math.max(REC.length ? REC[0].t : 0, pr.center - (pr.kind === 'clear' ? 1.5 : 1.3));
+  replay.t0 = Math.max(REC.length ? REC[0].t : 0, pr.center - (pr.kind === 'clear' ? 0.85 : 1.3));
   replay.t1 = pr.center + (pr.kind === 'clear' ? 0.7 : 1.2);
   replay.t = replay.t0; replay.speed = pr.kind === 'clear' ? 0.28 : 0.4;
   hud.classList.add('replay');
@@ -1241,6 +1241,7 @@ const replayCam = { angle: 0 };
 const _cp = new V3(), _cl = new V3(), _fw = new V3();
 const ARENA_CAM = new V3(2.12, 1.38, 1.62);
 function updateCamera(dtR, pos, quat, now) {
+  if (camMode === 'custom') return; // the render rig places the camera itself
   const L = LEVELS[level];
   const s = pos.z - WALL_Z;
   let m = camMode;
@@ -1908,11 +1909,28 @@ const SHOTS = {
     look(Math.sin(a) * d * 0.55, 1.0 + d * 0.84, Math.cos(a) * d * 0.55, 0, 1.0, -0.02, 36);
   } },
   // full autonomous knife-edge run through gate C, director cameras + automatic review
-  knife: { env: 'lab', chassis: 'on', frames: 450, sim: true, init() { simShot(2); }, frame() { tick(1 / 30); } },
-  slot: { env: 'lab', chassis: 'on', frames: 330, sim: true, init() { simShot(1); }, frame() { tick(1 / 30); } },
+  knife: { env: 'lab', chassis: 'on', frames: 420, sim: true, init() { simShot(2); }, frame: simFrame },
+  slot: { env: 'lab', chassis: 'on', frames: 420, sim: true, init() { simShot(1); }, frame: simFrame },
 };
+// scripted cameras for the gate runs: low chase on the approach, locked-off three-quarter view on the exit side
+const SC = { pos: new V3(), look: new V3(), phase: '', after: 0 };
+function simFrame() {
+  const L = LEVELS[level], p = S.p, s = p.z - WALL_Z;
+  pendingReplay = null;
+  if (s < -1.3) SC.after++;
+  if (SC.after > 24) return false;
+  const ph = s > 1.5 ? 'chase' : 'gate';
+  let fov;
+  if (ph === 'chase') { _cp.set(p.x + 0.32, p.y + 0.16, p.z + 1.05); _cl.set(p.x, p.y + 0.02, p.z - 0.7); fov = 46; }
+  else { _cp.set(L.gx + 0.78, L.gy + 0.12, WALL_Z - 1.1); _cl.copy(p); fov = clamp(2 * Math.atan(0.42 / _cp.distanceTo(p)) / DEG, 16, 60); }
+  if (ph !== SC.phase) { SC.pos.copy(_cp); SC.look.copy(_cl); SC.phase = ph; } else { SC.pos.lerp(_cp, ph === 'chase' ? 0.25 : 1); SC.look.lerp(_cl, 0.5); }
+  look(SC.pos.x, SC.pos.y, SC.pos.z, SC.look.x, SC.look.y, SC.look.z, fov);
+  tick(1 / 30);
+  return true;
+}
 function simShot(lv) {
-  mode = 'auto'; cycle = false; slowmo = true; camMode = 'director';
+  SC.phase = ''; SC.after = 0;
+  mode = 'auto'; cycle = false; slowmo = true; camMode = 'custom';
   freshPack(1); setLevel(lv, 'pick');
   for (let k = 0; k < 240 * 10 && !(AP.phase === 'approach' && S.p.z < -0.8); k++) step();
   cam.mode = '';
@@ -1932,12 +1950,13 @@ window.__REC = {
     return s.frames;
   },
   frame(i, q) {
-    RIG.n = i; RIG.shot.frame(i);
+    RIG.n = i;
+    if (RIG.shot.frame(i) === false) return null; // shot finished early
     if (!RIG.shot.sim) renderNow();
     return canvas.toDataURL('image/jpeg', q || 0.94);
   },
   state() { return { knife: S.knife, phase: AP.phase, replay: replay.on, s: +(S.p.z - WALL_Z).toFixed(2) }; },
-  end() { if (RIG.shot && RIG.shot.done) RIG.shot.done(); },
+  end() { if (RIG.shot && RIG.shot.done) RIG.shot.done(); if (camMode === 'custom') camMode = 'director'; },
 };
 
 // headless test hook
