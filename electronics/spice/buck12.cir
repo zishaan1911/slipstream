@@ -1,0 +1,62 @@
+* SX-01 12 V rail: 500 kHz synchronous buck for the companion computer + depth camera
+* Average-current-mode control (inner current loop, outer PI voltage loop), 95 % max duty.
+* The input follows a pack sag from 16 V down through the dropout region; the load steps
+* from 15.7 W (idle) to 20.2 W when gate detection starts.
+.param fsw=500k
+.param ts={1/fsw}
+.param dmax=0.95
+.param lout=10u
+
+* --- input: pack voltage profile + input ceramics
+Vin vin0 0 PWL(0 16 0.7m 16 1.45m 11.0 1.6m 11.0)
+Rin vin0 vin 10m
+Cin vin 0 44u
+
+* --- power stage (high/low switches, inductor with DCR, polymer + ceramic output caps)
+.model swb sw(vt=0 vh=1m ron=10m roff=10meg)
+.model db d(is=1e-10 rs=5m n=1.3)
+* comparator built into the switches: high side on while duty > ramp, low side on otherwise
+SH vin sw dc ramp swb
+SL sw 0 ramp dc swb
+DL 0 sw db
+L1 sw xl {lout}
+RL xl xs 12m
+VsL xs out 0
+Cpoly out cp1 100u
+Rpoly cp1 0 15m
+Ccer out 0 44u
+
+* --- load: constant-power computer behind its own 10.5 V under-voltage lock-out,
+*     stepping up when the vision pipeline starts
+Bload out 0 I = { V(out) > 10.5 ? (time < 0.55m ? 15.7 : 20.2) / V(out) : V(out)/50 }
+
+* --- controller
+Bref ref 0 V = { min(12, time/0.25m*12) }
+* PI integrator with anti-windup clamps, held at zero until switching starts
+Gint 0 vi cur = { time < 1u ? -V(vi) : ((V(vi) > 6 && V(ref) > V(out)) || (V(vi) < -1 && V(ref) < V(out)) ? 0 : 2500*(V(ref)-V(out))) }
+Cint vi 0 1
+Rint vi 0 1meg
+Biset iset 0 V = { max(0, min(6, 2.5*(V(ref)-V(out)) + V(vi))) }
+Bduty dc 0 V = { time < 1u ? -0.01 : max(0.001, min(dmax, (V(out) + 2.0*(V(iset) - i(VsL))) / max(V(vin), 1))) }
+Vramp ramp 0 PULSE(0 1 0 {ts-4n} 4n 0 {ts})
+
+.tran 20n 1.6m 0 20n
+
+.control
+set wr_singlescale
+set wr_vecnames
+run
+meas tran vout_reg AVG v(out) from=0.48m to=0.55m
+meas tran vout_step_min MIN v(out) from=0.55m to=0.68m
+meas tran vout_ripple PP v(out) from=0.62m to=0.68m
+meas tran il_ripple PP i(VsL) from=0.62m to=0.68m
+meas tran t_brown WHEN v(out)=11.0 FALL=1 from=0.7m
+meas tran vin_at_brown FIND v(vin) AT=t_brown
+meas tran t_drop WHEN v(out)=11.9 FALL=1 from=0.7m
+meas tran vin_at_drop FIND v(vin) AT=t_drop
+* resample to a uniform 20 ns grid so the waveform file stays small
+linearize v(out) v(vin) i(VsL) v(dc)
+wrdata {OUT} v(out) v(vin) i(VsL) v(dc)
+quit
+.endc
+.end
