@@ -1,0 +1,58 @@
+* SX-01 power distribution: 4S LiPo, harness, ESC input capacitance, four interleaved ESCs
+* t < 1 ms: hover.  1.0-1.6 ms: take-off / knife-edge pop surge ramps every ESC to its 45 A phase-current limit.
+.param vocv=16.40
+.param cbulk=1000u
+.param fpwm=48k
+.param tp={1/fpwm}
+
+* --- pack: OCV + ohmic + one RC polarisation branch, 4 cells in series
+*     per cell: R0 3.5 mOhm, R1 2.5 mOhm, C1 6000 F  (tau = 15 s)
+Vocv  b0 0 {vocv}
+R0    b0 b1 14m
+R1    b1 b2 10m
+C1    b1 b2 1500
+
+* --- 12 AWG leads + XT60 pair: resistance and loop inductance
+Rlead b2 b3 4m
+Llead b3 bus 120n
+
+* --- bulk low-ESR electrolytic on the PDB (35 V) + on-board ceramics of the 4-in-1 ESC
+Cbulk bus nb1 {cbulk}
+Rbesr nb1 nb2 18m
+Lbesl nb2 0 6n
+Ccer  bus nc1 40u
+Rcesr nc1 0 2m
+
+* --- regulators + flight controller, lumped
+Irail bus 0 1.6
+
+* --- per-ESC phase-current envelope and duty (hover -> surge)
+.func iph(t) { t<1m ? 6.4 : (t<1.6m ? 6.4+(t-1m)/0.6m*(45-6.4) : 45) }
+.func dty(t) { t<1m ? 0.61 : (t<1.6m ? 0.61+(t-1m)/0.6m*(0.97-0.61) : 0.97) }
+.func pw(t,ph) { (t+ph*tp/4 - floor((t+ph*tp/4)/tp)*tp) < dty(t)*tp ? 1 : 0 }
+
+* each ESC pulls its phase current from the bus only while its high-side switch conducts;
+* the four ESC PWM carriers are interleaved by a quarter period
+B1 bus 0 I = { pw(time,0)*iph(time) }
+B2 bus 0 I = { pw(time,1)*iph(time) }
+B3 bus 0 I = { pw(time,2)*iph(time) }
+B4 bus 0 I = { pw(time,3)*iph(time) }
+
+.tran 0.1u 3m 0 0.1u
+
+.control
+set wr_singlescale
+set wr_vecnames
+run
+meas tran vmin_hover MIN v(bus) from=0.5m to=0.95m
+meas tran vmax_hover MAX v(bus) from=0.5m to=0.95m
+meas tran vmin_surge MIN v(bus) from=1m to=3m
+meas tran vavg_surge AVG v(bus) from=2.5m to=3m
+meas tran ilead_hover AVG i(Llead) from=0.5m to=0.95m
+meas tran ilead_surge AVG i(Llead) from=2.5m to=3m
+meas tran icap_rms_hover RMS i(Lbesl) from=0.5m to=0.95m
+meas tran icap_rms_surge RMS i(Lbesl) from=2.5m to=3m
+wrdata {OUT} v(bus) i(Llead) i(Lbesl)
+quit
+.endc
+.end
