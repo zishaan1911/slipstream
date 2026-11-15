@@ -1,0 +1,293 @@
+<title>SX-01 Power Electronics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one reading column of lab-notebook entries; each circuit = schematic, waveforms, findings. Figures sit on white "paper" in both themes. */
+:root{
+  --bg:#eef0f2; --paper:#ffffff; --ink:#15171a; --ink2:#3e434a; --steel:#6b7178; --hair:rgba(21,23,26,.14);
+  --signal:#f26a1b; --ref:#4f6d8f; --ok:#2f7d55; --bad:#b8402b; --tint:rgba(242,106,27,.08);
+  --font-d:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-m:"JetBrains Mono",ui-monospace,"Cascadia Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#111316; --paper:#1a1d21; --ink:#eceef0; --ink2:#c3c8ce; --steel:#9aa0a6; --hair:rgba(255,255,255,.14); --ref:#86a6c9; --ok:#6fd39b; --bad:#ef8a73; --tint:rgba(242,106,27,.12); color-scheme:dark } }
+:root[data-theme="dark"]{ --bg:#111316; --paper:#1a1d21; --ink:#eceef0; --ink2:#c3c8ce; --steel:#9aa0a6; --hair:rgba(255,255,255,.14); --ref:#86a6c9; --ok:#6fd39b; --bad:#ef8a73; --tint:rgba(242,106,27,.12); color-scheme:dark }
+body{background:var(--bg);color:var(--ink);font:400 15px/1.6 var(--font-d);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px}
+.wrap{max-width:900px;margin:0 auto;display:grid;gap:40px}
+header{display:grid;gap:10px}
+.eyebrow{font:500 11px/1 var(--font-m);letter-spacing:.14em;text-transform:uppercase;color:var(--steel);display:flex;gap:10px;align-items:center}
+.eyebrow svg{width:22px;height:22px}
+h1{margin:0;font-weight:700;font-size:clamp(28px,4.5vw,40px);line-height:1.05;font-stretch:112%;letter-spacing:-.01em;text-wrap:balance}
+h2{margin:0;font-weight:700;font-size:22px;line-height:1.2;font-stretch:108%;text-wrap:balance}
+h3{margin:0;font:600 11px/1 var(--font-m);letter-spacing:.12em;text-transform:uppercase;color:var(--steel)}
+p{margin:0;max-width:68ch;color:var(--ink2)}
+.lede{font-size:16.5px;color:var(--ink2)}
+code,.m{font-family:var(--font-m);font-size:.9em}
+section{display:grid;gap:16px}
+.sec-head{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;border-top:1px solid var(--hair);padding-top:22px}
+.sec-head .file{font:500 12px/1 var(--font-m);color:var(--steel)}
+figure{margin:0;background:#fff;border:1px solid var(--hair);border-radius:3px;padding:12px;display:grid;gap:8px;color:#15171a}
+figure figcaption{font:400 12.5px/1.45 var(--font-d);color:#5c6168}
+figure img{display:block;width:100%;height:auto}
+.sch{overflow-x:auto}
+.sch svg{display:block;width:100%;min-width:640px;height:auto}
+.sch .w{fill:none;stroke:#15171a;stroke-width:1.4;stroke-linejoin:round;stroke-linecap:round}
+.sch .b{fill:none;stroke:#15171a;stroke-width:1.6;stroke-linejoin:round}
+.sch .f{fill:#15171a;stroke:none}
+.sch .dot{fill:#15171a}
+.sch .grp{fill:none;stroke:#9aa0a6;stroke-width:1;stroke-dasharray:4 3}
+.sch text{font-family:var(--font-m);fill:#15171a}
+.sch .lb{font-size:10px}
+.sch .sm{font-size:9px;fill:#6b7178}
+.sch .gl{font-size:10px;fill:#6b7178;font-style:italic}
+.sch .net{font-size:10.5px;font-weight:600;fill:#f26a1b}
+.sch .blk{fill:#fff;stroke:#15171a;stroke-width:1.2}
+.sch .ar{fill:none;stroke:#6b7178;stroke-width:1;stroke-dasharray:3 3}
+.tbl{overflow-x:auto;border:1px solid var(--hair);border-radius:3px;background:var(--paper)}
+table{width:100%;border-collapse:collapse;font:400 13px/1.35 var(--font-d)}
+th,td{padding:9px 12px;border-bottom:1px solid var(--hair);text-align:left;vertical-align:top}
+th{font:500 10.5px/1.2 var(--font-m);letter-spacing:.06em;text-transform:uppercase;color:var(--steel);background:var(--tint)}
+td.n{font-family:var(--font-m);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+td .u{color:var(--steel);font-size:.85em}
+tr:last-child td{border-bottom:0}
+.verdict{font:500 11px/1 var(--font-m);padding:3px 6px;border-radius:2px;white-space:nowrap}
+.v-ok{color:var(--ok);background:color-mix(in srgb,var(--ok) 12%,transparent)}
+.v-fix{color:var(--signal);background:var(--tint)}
+.v-new{color:var(--ref);background:color-mix(in srgb,var(--ref) 14%,transparent)}
+ul.find{margin:0;padding-left:18px;display:grid;gap:8px;max-width:72ch;color:var(--ink2)}
+ul.find b{color:var(--ink);font-weight:600}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.two > *{min-width:0}
+@media (max-width:720px){ .two{grid-template-columns:1fr} }
+.fb{background:var(--paper);border:1px solid var(--hair);border-left:3px solid var(--signal);border-radius:3px;padding:14px 16px;display:grid;gap:8px}
+.fb code{background:var(--tint);padding:1px 5px;border-radius:2px}
+pre{margin:0;background:var(--paper);border:1px solid var(--hair);border-radius:3px;padding:12px 14px;overflow-x:auto;font:400 12.5px/1.6 var(--font-m);color:var(--ink2)}
+.files{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13.5px}
+.files code{color:var(--ink)}
+.files span{color:var(--ink2)}
+@media (max-width:520px){ .files{grid-template-columns:1fr} }
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="10" fill="#15171a"/><path fill="#fff" fill-rule="evenodd" transform="translate(6.4 6.4) scale(.8)" d="M11.1 8H52.9L22.2 56H16L43.1 13.7H11.1ZM17.7 34.2a14.4 14.4 0 1 0 28.8 0a14.4 14.4 0 1 0-28.8 0Z"/></svg>Seventh Axis · SlipStream · electronics phase 2</div>
+  <h1>SX-01 power electronics, simulated in SPICE</h1>
+  <p class="lede">Three circuits from the SX-01 power chain, built component by component and simulated in ngspice 45.2: the pack and power distribution bus, one ESC's MOSFET bridge driving its brushless motor, and the 500 kHz buck converter that feeds the companion computer. Each result is checked against the simpler model the flight simulator uses, and the differences were fed back into it.</p>
+</header>
+
+<section>
+  <div class="sec-head"><h2>Flight model vs. SPICE</h2></div>
+  <div class="tbl"><table>
+    <thead><tr><th>Quantity</th><th>Flight model</th><th>SPICE</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>ESC duty at hover (10.4k rpm, 15.8 V)</td><td class="n">$d_model <span class="u">%</span></td><td class="n">$d_spice <span class="u">%</span></td><td><span class="verdict $c_duty">$t_duty</span></td></tr>
+      <tr><td>Bus current per ESC at hover</td><td class="n">$ibus_model <span class="u">A</span></td><td class="n">$ibus_spice <span class="u">A</span></td><td><span class="verdict $c_ibus">$t_ibus</span></td></tr>
+      <tr><td>ESC + motor-copper efficiency at hover</td><td class="n">$eff_model <span class="u">%</span></td><td class="n">$eff_spice <span class="u">%</span></td><td><span class="verdict $c_eff">$t_eff</span></td></tr>
+      <tr><td>Pack current at hover, all loads</td><td class="n">$pack_model <span class="u">A</span></td><td class="n">$pack_spice <span class="u">A</span></td><td><span class="verdict $c_pack">$t_pack</span></td></tr>
+      <tr><td>Bus minimum, 20 % pack, $isurge A surge</td><td class="n">$vmin_model <span class="u">V</span></td><td class="n">$vmin_spice <span class="u">V</span></td><td><span class="verdict $c_vmin">$t_vmin</span></td></tr>
+      <tr><td>Effective motor resistance at hover speed</td><td class="n">$reff_model <span class="u">mΩ</span></td><td class="n">$reff_spice <span class="u">mΩ</span></td><td><span class="verdict v-fix">corrected</span></td></tr>
+      <tr><td>Max thrust per rotor, full duty, 15.5 V</td><td class="n">$tmax_before <span class="u">N</span></td><td class="n">$tmax_after <span class="u">N</span></td><td><span class="verdict v-fix">corrected</span></td></tr>
+      <tr><td>Pack voltage where the 12 V rail starts to drop</td><td class="n">12.80 <span class="u">V</span></td><td class="n">$vin_drop <span class="u">V</span></td><td><span class="verdict v-fix">corrected</span></td></tr>
+      <tr><td>Pack voltage where the computer browns out (rail &lt; 11.0 V)</td><td class="n">11.80 <span class="u">V</span></td><td class="n">$vin_brown <span class="u">V</span></td><td><span class="verdict v-fix">corrected</span></td></tr>
+      <tr><td>Bus ripple at hover, bulk capacitor removed</td><td class="n">not modelled</td><td class="n">$rip_nocap <span class="u">mV pk-pk</span></td><td><span class="verdict v-new">new insight</span></td></tr>
+    </tbody>
+  </table></div>
+  <div class="fb">
+    <h3>Fed back into SlipStream</h3>
+    <p><b>Motor.</b> The flight model drove each motor as a plain 60 mΩ resistance against back-EMF. In the switching simulation, commutation and winding inductance make the motor behave like a larger resistance that grows with speed. Fitted over three speeds it is <code>R_eff = $r0 mΩ + $r1 µΩ·s × ω</code>, with an effective back-EMF constant of <code>$ke_eff mV·s/rad</code> at 15° timing advance. The flight model now uses that, which lowers the top-end thrust of each rotor from $tmax_before N to $tmax_after N.</p>
+    <p><b>12 V rail.</b> The flight model treated the regulator as a fixed 0.8 V dropout, so it predicted brownout at 11.8 V. The switching simulation shows the 95 % maximum duty and the converter's own losses set the limit instead. The rail model is now that ceiling minus a loss term fitted to the SPICE brownout point, <code>$fit</code>. The fixed-dropout guess of 11.8 V turns out close; the larger change is that the rail starts sagging at $vin_drop V rather than 12.8 V.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Pack, harness and ESC bus</h2><span class="file">battery_bus.cir</span></div>
+  <figure class="sch"><div id="s1"></div><figcaption>4S LiPo as open-circuit voltage, ohmic resistance and one RC polarisation branch (all four cells lumped), 12 AWG leads and XT60 with their loop inductance, the bulk electrolytic with ESR and ESL, the ESC board ceramics, and four ESCs drawing chopped current at 48 kHz with their PWM carriers interleaved by a quarter period.</figcaption></figure>
+  <figure><img src="plots/bus_surge.png" alt="Bus voltage and pack current through a hover-to-surge transient for a full pack, a 20 % pack, and a 20 % pack without the bulk capacitor"><figcaption>All four ESCs ramp from hover to their 45 A phase-current limit between 1.0 and 1.6 ms.</figcaption></figure>
+  <figure><img src="plots/bus_ripple.png" alt="Bus voltage ripple at hover with and without the bulk capacitor"><figcaption>Hover, 20 % pack: ripple with the 1000 µF bulk capacitor fitted and with it removed.</figcaption></figure>
+  <ul class="find">
+    <li><b>The surge pulls $isurge A from the pack.</b> On a 20 % pack the bus bottoms out at $vmin_spice V and settles near $vavg_spice V. A full pack holds $vmin_full V. The flight model's resistive estimate ($vmin_model V) is close, because the pack's ohmic resistance dominates.</li>
+    <li><b>On a 20 % pack that surge would reset the companion computer.</b> The bus falls below the $vin_brown V where the 12 V rail drops out (see the buck section). This is why the autopilot climbs at a limited rate and uses a gentler knife-edge pop-up instead of driving all four ESCs into current limit.</li>
+    <li><b>The bulk capacitor matters for ripple, not for the surge minimum.</b> Removing it raises the hover ripple from $rip_cap to $rip_nocap mV pk-pk, while the surge minimum only moves to $vmin_nocap V. The capacitor carries $icap_hover A rms at hover and $icap_surge A rms at full current, which sets its ripple-current rating.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="sec-head"><h2>ESC power stage and motor</h2><span class="file">esc_bldc.cir</span></div>
+  <figure class="sch"><div id="s2"></div><figcaption>Three MOSFET half-bridges (3 mΩ on-resistance plus body diodes) with six-step commutation, complementary 48 kHz PWM and 15° timing advance, driving a star-connected BLDC: 30 mΩ and 12 µH per phase and a trapezoidal back-EMF of K<sub>e</sub>·ω/2 per phase. Rotor speed is held fixed so the electrical steady state can be measured directly.</figcaption></figure>
+  <figure><img src="plots/esc_sweep.png" alt="Shaft power versus ESC duty at hover speed"><figcaption>Shaft power versus duty at 1087 rad/s. The hover set-point is where it meets the propeller load from the flight model ($pmech W).</figcaption></figure>
+  <div class="two">
+    <figure><img src="plots/esc_hover.png" alt="Hover phase voltage and three phase currents over two electrical periods"><figcaption>Hover: phase A terminal voltage, star point and the three phase currents.</figcaption></figure>
+    <figure><img src="plots/esc_pop.png" alt="High-load phase voltage and currents during the knife-edge pop-up"><figcaption>Knife-edge pop-up: 13.7k rpm, 98 % duty on a sagged 14.2 V bus.</figcaption></figure>
+  </div>
+  <ul class="find">
+    <li><b>Bus current at hover matches; the duty needed does not.</b> SPICE draws $ibus_spice A from the bus against the model's $ibus_model A, but needs $d_spice % duty where the model expected $d_model %. Without timing advance the gap is far larger: at 10.4k rpm only about 0.4 V is left after back-EMF, and the winding inductance cannot build current within one 137 µs commutation step.</li>
+    <li><b>Duty is a steep control input.</b> Back-EMF cancels most of the applied voltage, so one percent of duty moves shaft power by roughly ten watts. That is why the flight controller needs rotor-speed feedback and battery-voltage compensation.</li>
+    <li><b>Ripple is large.</b> Each phase carries $iph_rms A rms at hover with $iph_pp A pk-pk ripple at 48 kHz, so motor iron and copper see far more than the average current suggests.</li>
+    <li><b>The knife-edge pop-up is right at the limit.</b> It needs about $pop_need W per rotor at 13.7k rpm. At 98 % duty on a sagged 14.2 V bus one ESC delivers $pop_pm W ($pop_ibus A from the bus, $pop_eff % efficient), so the manoeuvre only works while the pack can hold its voltage.</li>
+  </ul>
+  <div class="tbl"><table>
+    <thead><tr><th>Rotor speed [rad/s]</th><th>[rpm]</th><th>R_eff [mΩ]</th><th>Ke_eff [mV·s/rad]</th></tr></thead>
+    <tbody>$reff_fit_rows</tbody>
+  </table></div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>12 V rail for the companion computer</h2><span class="file">buck12.cir</span></div>
+  <figure class="sch"><div id="s3"></div><figcaption>Synchronous buck at 500 kHz: 10 mΩ switches, 10 µH inductor with 12 mΩ winding resistance, 100 µF polymer plus 44 µF ceramic output. Average-current-mode control: an outer PI voltage loop sets the inductor current and an inner loop sets the duty, capped at 95 %. The computer is a constant-power load behind its own 10.5 V under-voltage lock-out.</figcaption></figure>
+  <figure><img src="plots/buck.png" alt="Buck output, inductor current and duty through soft-start, a load step and an input sag into dropout"><figcaption>Soft-start, the vision-pipeline load step at 0.45 ms, then the pack sagging from 16 V to 11 V.</figcaption></figure>
+  <ul class="find">
+    <li><b>The rail regulates at $vout_reg V</b> with $vrip mV pk-pk ripple and $ilrip A pk-pk inductor ripple; through the 4.5 W load step it stays above $vstep V.</li>
+    <li><b>Dropout starts at $vin_drop V and the computer resets at $vin_brown V on the pack.</b> Once the duty saturates at 95 %, the rail tracks the pack minus the switch and inductor losses. This is the margin the take-off and pop-up surges eat into.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Reproduce</h2></div>
+  <div class="files">
+    <code>spice/battery_bus.cir</code><span>pack, harness, bus capacitance, interleaved ESC loads</span>
+    <code>spice/esc_bldc.cir</code><span>3-phase bridge + BLDC, six-step, complementary PWM</span>
+    <code>spice/buck12.cir</code><span>500 kHz synchronous buck, average-current-mode control</span>
+    <code>spice/run_all.py</code><span>runs every case, writes results.json and the plots</span>
+    <code>build_notebook.py</code><span>fills this page from results.json and the flight model's equations</span>
+  </div>
+  <pre>cd electronics/spice
+python run_all.py          # ngspice batch; the buck case takes about 7 minutes
+cd ..
+python build_notebook.py</pre>
+</section>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  function Sch(w, h) { this.W = w; this.H = h; this.o = []; }
+  var BODY = { R: 24, C: 6, L: 28, V: 24, I: 22, E: 22, D: 10, S: 20 };
+  Sch.prototype.wire = function () {
+    var pts = Array.prototype.slice.call(arguments).map(function (p) { return p[0] + ',' + p[1]; }).join(' ');
+    this.o.push('<polyline class="w" points="' + pts + '"/>'); return this;
+  };
+  Sch.prototype.dot = function (x, y) { this.o.push('<circle class="dot" cx="' + x + '" cy="' + y + '" r="2.6"/>'); return this; };
+  Sch.prototype.text = function (x, y, s, anchor, cls) { this.o.push('<text x="' + x + '" y="' + y + '" text-anchor="' + (anchor || 'start') + '" class="' + (cls || 'lb') + '">' + s + '</text>'); return this; };
+  Sch.prototype.group = function (x, y, w, h, label) {
+    this.o.push('<rect class="grp" x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="3"/>');
+    if (label) this.text(x + 5, y + 12, label, 'start', 'sm'); return this;
+  };
+  Sch.prototype.gnd = function (x, y) { this.wire([x - 9, y], [x + 9, y]).wire([x - 6, y + 3.5], [x + 6, y + 3.5]).wire([x - 3, y + 7], [x + 3, y + 7]); return this; };
+  Sch.prototype.box = function (x, y, w, h, l1, l2) {
+    this.o.push('<rect class="blk" x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="3"/>');
+    this.text(x + w / 2, y + (l2 ? h / 2 - 2 : h / 2 + 3.5), l1, 'middle', 'lb'); if (l2) this.text(x + w / 2, y + h / 2 + 11, l2, 'middle', 'sm'); return this;
+  };
+  Sch.prototype.arrow = function (x1, y1, x2, y2) {
+    this.o.push('<line class="ar" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '"/>');
+    var a = Math.atan2(y2 - y1, x2 - x1), s = 5;
+    this.o.push('<polygon class="f" points="' + x2 + ',' + y2 + ' ' + (x2 - s * Math.cos(a - 0.45)) + ',' + (y2 - s * Math.sin(a - 0.45)) + ' ' + (x2 - s * Math.cos(a + 0.45)) + ',' + (y2 - s * Math.sin(a + 0.45)) + '"/>');
+    return this;
+  };
+  // two-terminal part between two axis-aligned points; label side: 'a' above / 'b' below / 'r' right / 'l' left
+  Sch.prototype.part = function (kind, x1, y1, x2, y2, label, side, sub) {
+    var horiz = y1 === y2, len = horiz ? Math.abs(x2 - x1) : Math.abs(y2 - y1), b = BODY[kind];
+    var mx = (x1 + x2) / 2, my = (y1 + y2) / 2, dx = horiz ? Math.sign(x2 - x1) : 0, dy = horiz ? 0 : Math.sign(y2 - y1);
+    this.wire([x1, y1], [mx - dx * b / 2, my - dy * b / 2]);
+    this.wire([mx + dx * b / 2, my + dy * b / 2], [x2, y2]);
+    var ang = horiz ? (dx > 0 ? 0 : 180) : (dy > 0 ? 90 : -90), g = '';
+    if (kind === 'R') g = '<polyline class="b" points="-12,0 -10,-5 -6,5 -2,-5 2,5 6,-5 10,5 12,0"/>';
+    if (kind === 'C') g = '<line class="b" x1="-3" y1="-9" x2="-3" y2="9"/><line class="b" x1="3" y1="-9" x2="3" y2="9"/>';
+    if (kind === 'L') g = '<path class="b" d="M-14,0 a3.5,3.5 0 0 1 7,0 a3.5,3.5 0 0 1 7,0 a3.5,3.5 0 0 1 7,0 a3.5,3.5 0 0 1 7,0"/>';
+    if (kind === 'V') g = '<circle class="b" r="12"/><text class="lb" x="-8" y="4" text-anchor="middle" transform="rotate(' + (-ang) + ' -8 0)">−</text><text class="lb" x="8" y="4" text-anchor="middle" transform="rotate(' + (-ang) + ' 8 0)">+</text>';
+    if (kind === 'I') g = '<circle class="b" r="11"/><line class="b" x1="-6" y1="0" x2="5" y2="0"/><polygon class="f" points="7,0 2,-3.5 2,3.5"/>';
+    if (kind === 'E') g = '<circle class="b" r="11"/><polyline class="b" points="-7,4 -3.5,-4 3.5,-4 7,4" transform="rotate(' + (-ang) + ')"/>';
+    if (kind === 'D') g = '<polygon class="f" points="-5,-6 -5,6 5,0"/><line class="b" x1="5" y1="-6" x2="5" y2="6"/>';
+    if (kind === 'S') g = '<circle class="dot" cx="-10" cy="0" r="2"/><circle class="dot" cx="10" cy="0" r="2"/><line class="b" x1="-10" y1="0" x2="8" y2="-8"/>';
+    this.o.push('<g transform="translate(' + mx + ',' + my + ') rotate(' + ang + ')">' + g + '</g>');
+    if (label) {
+      side = side || (horiz ? 'a' : 'r');
+      var off = (kind === 'V' || kind === 'I' || kind === 'E') ? 18 : 13;
+      var tx = mx + (side === 'r' ? off : side === 'l' ? -off : 0), ty = my + (side === 'a' ? -off + 2 : side === 'b' ? off + 7 : 3.5);
+      var an = side === 'r' ? 'start' : side === 'l' ? 'end' : 'middle';
+      this.text(tx, ty, label, an, 'lb'); if (sub) this.text(tx, ty + 11, sub, an, 'sm');
+    }
+    return this;
+  };
+  // N-channel MOSFET, drain up at (x,yd), source down at (x,ys), gate to the left, body diode to the right
+  Sch.prototype.fet = function (x, yd, ys, label) {
+    var c = (yd + ys) / 2;
+    this.wire([x, yd], [x, c - 8], [x - 8, c - 8]).wire([x, ys], [x, c + 8], [x - 8, c + 8]);
+    this.wire([x - 8, c - 11], [x - 8, c + 11]).wire([x - 12, c - 8], [x - 12, c + 8]).wire([x - 12, c], [x - 22, c]);
+    this.o.push('<polygon class="f" points="' + (x - 8) + ',' + (c + 8) + ' ' + (x - 3) + ',' + (c + 5) + ' ' + (x - 3) + ',' + (c + 11) + '"/>');
+    this.wire([x, c - 8], [x + 11, c - 8], [x + 11, c - 5]).wire([x + 11, c + 5], [x + 11, c + 8], [x, c + 8]);
+    this.o.push('<polygon class="f" points="' + (x + 6) + ',' + (c + 5) + ' ' + (x + 16) + ',' + (c + 5) + ' ' + (x + 11) + ',' + (c - 4) + '"/>');
+    this.wire([x + 6, c - 5], [x + 16, c - 5]);
+    this.text(x - 24, c + 3.5, label, 'end', 'gl');
+    return this;
+  };
+  Sch.prototype.render = function (id) {
+    document.getElementById(id).innerHTML = '<svg viewBox="0 0 ' + this.W + ' ' + this.H + '" role="img" aria-label="Circuit schematic">' + this.o.join('') + '</svg>';
+  };
+
+  // ---- 1. pack, harness, bus
+  var a = new Sch(800, 250);
+  a.group(14, 26, 206, 214, '4S LiPo pack model');
+  a.part('V', 40, 210, 40, 60, 'OCV', 'r', '16.4 / 14.76 V');
+  a.part('R', 40, 60, 110, 60, 'R0 14 mΩ');
+  a.wire([110, 60], [130, 60]).dot(130, 60).dot(200, 60);
+  a.part('R', 130, 60, 200, 60, 'R1 10 mΩ');
+  a.wire([130, 60], [130, 104]).part('C', 130, 104, 200, 104, 'C1 1500 F', 'b').wire([200, 104], [200, 60]);
+  a.group(226, 30, 118, 52, 'leads + XT60');
+  a.part('R', 200, 60, 272, 60, '4 mΩ', 'b').part('L', 272, 60, 342, 60, '120 nH', 'b');
+  a.wire([342, 60], [770, 60]).dot(372, 60).text(372, 48, 'VBUS', 'middle', 'net');
+  a.dot(410, 60).part('C', 410, 60, 410, 108, 'Cbulk 1000 µF', 'r').part('R', 410, 108, 410, 154, '18 mΩ ESR', 'r').part('L', 410, 154, 410, 210, '6 nH ESL', 'r');
+  a.dot(530, 60).part('C', 530, 60, 530, 120, '40 µF', 'r', 'ceramic').part('R', 530, 120, 530, 210, '2 mΩ', 'r');
+  a.group(598, 78, 132, 112, '4× ESC, interleaved');
+  [622, 662, 702].forEach(function (x, i) { a.dot(x, 60); a.part('I', x, 60, x, 210); a.text(x, 108, 'ESC' + (i + 1), 'middle', 'sm'); a.dot(x, 210); });
+  a.text(721, 140, '…', 'middle', 'lb');
+  a.dot(770, 60).part('I', 770, 60, 770, 210).text(770, 48, 'rails 1.6 A', 'middle', 'sm');
+  a.wire([40, 210], [770, 210]).gnd(372, 210);
+  [410, 530].forEach(function (x) { a.dot(x, 210); });
+  a.render('s1');
+
+  // ---- 2. ESC bridge + BLDC
+  var b = new Sch(810, 300);
+  b.part('V', 30, 270, 30, 40, '15.8 V', 'r');
+  b.part('R', 30, 40, 100, 40, 'Rsrc 15 mΩ');
+  b.wire([100, 40], [470, 40]).dot(130, 40).part('C', 130, 40, 130, 150, 'Cbus 220 µF', 'r').part('R', 130, 150, 130, 270, '20 mΩ', 'r');
+  b.text(470, 34, 'VBUS', 'end', 'net');
+  var legs = [[260, 'A', 148], [360, 'B', 155], [460, 'C', 162]];
+  legs.forEach(function (L) {
+    var x = L[0]; b.dot(x, 40).fet(x, 40, 140, L[1] + 'H').wire([x, 140], [x, 170]).fet(x, 170, 270, L[1] + 'L').dot(x, 270).dot(x, L[2]);
+  });
+  b.wire([260, 148], [525, 148], [525, 100], [552, 100]);
+  b.wire([360, 155], [552, 155]);
+  b.wire([460, 162], [539, 162], [539, 215], [552, 215]);
+  b.group(532, 52, 252, 196, 'BLDC · 1100 KV · 14 poles · star');
+  [[100, 'A'], [155, 'B'], [215, 'C']].forEach(function (p) {
+    var y = p[0]; b.part('R', 552, y, 602, y, '30 mΩ', 'a').part('L', 602, y, 662, y, '12 µH', 'a').part('E', 662, y, 722, y, 'e' + p[1], 'a').wire([722, y], [752, y]);
+  });
+  b.wire([752, 100], [752, 215]).dot(752, 155).text(760, 159, 'N', 'start', 'net');
+  b.wire([30, 270], [470, 270]).gnd(360, 270);
+  b.text(590, 290, 'six-step commutation · complementary PWM 48 kHz', 'middle', 'sm');
+  b.render('s2');
+
+  // ---- 3. 12 V buck + controller
+  var c = new Sch(780, 330);
+  c.part('V', 30, 200, 30, 60, 'pack', 'r', '16 → 11 V');
+  c.part('R', 30, 60, 92, 60, '10 mΩ').dot(112, 60).part('C', 112, 60, 112, 200, 'Cin 44 µF', 'r');
+  c.wire([92, 60], [150, 60]).part('S', 150, 60, 214, 60, 'Q1 10 mΩ', 'a').text(182, 84, 'gH', 'middle', 'gl');
+  c.wire([214, 60], [240, 60]).dot(240, 60).text(240, 48, 'SW', 'middle', 'net');
+  c.part('S', 240, 60, 240, 200, 'Q2 10 mΩ', 'r').text(220, 134, 'gL', 'end', 'gl');
+  c.part('L', 240, 60, 310, 60, '10 µH').part('R', 310, 60, 370, 60, 'DCR 12 mΩ').wire([370, 60], [600, 60]).dot(395, 60).text(395, 48, '12 V', 'middle', 'net');
+  c.dot(440, 60).part('C', 440, 60, 440, 128, '100 µF', 'r', 'polymer').part('R', 440, 128, 440, 200, '15 mΩ', 'r');
+  c.dot(520, 60).part('C', 520, 60, 520, 200, '44 µF', 'r', 'ceramic');
+  c.part('I', 600, 60, 600, 200, 'computer', 'r', '15.7 → 20.2 W');
+  c.text(618, 166, 'UVLO 10.5 V', 'start', 'sm');
+  c.wire([30, 200], [600, 200]).gnd(320, 200);
+  [112, 240, 440, 520].forEach(function (x) { c.dot(x, 200); });
+  c.box(20, 252, 170, 44, 'PI voltage loop', 'Vref 12 V − Vo → I_set');
+  c.box(212, 252, 250, 44, 'inner current loop', 'd = (Vo + 2 Ω·(I_set − I_L)) / Vin');
+  c.box(484, 252, 170, 44, 'PWM 500 kHz', 'd ≤ 95 %');
+  c.arrow(190, 274, 210, 274).arrow(462, 274, 482, 274).arrow(569, 252, 569, 226);
+  c.text(575, 238, 'to gH / gL', 'start', 'sm');
+  c.arrow(395, 64, 395, 248);
+  c.text(401, 236, 'Vo, I_L', 'start', 'sm');
+  c.render('s3');
+})();
+</script>
