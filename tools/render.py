@@ -43,7 +43,7 @@ def open_page(browser, w, h):
 
 def grab(page, i):
     url = page.evaluate(f'__REC.frame({i})')
-    return base64.b64decode(url.split(',', 1)[1])
+    return None if url is None else base64.b64decode(url.split(',', 1)[1])
 
 
 def videos(browser, names):
@@ -55,8 +55,11 @@ def videos(browser, names):
         shutil.rmtree(fdir, ignore_errors=True); os.makedirs(fdir)
         t0 = time.time(); knife_frames = []
         for i in range(n):
+            data = grab(page, i)
+            if data is None:  # the shot ended itself
+                n = i; break
             with open(os.path.join(fdir, f'f_{i:04d}.jpg'), 'wb') as f:
-                f.write(grab(page, i))
+                f.write(data)
             if name in ('knife', 'slot'):
                 st = page.evaluate('__REC.state()')
                 if st['knife'] or (abs(st['s']) < 0.25 and not st['replay']):
