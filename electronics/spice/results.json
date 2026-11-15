@@ -1,0 +1,158 @@
+{
+  "battery_bus": {
+    "full": {
+      "vmin_hover": 15.81617,
+      "vmax_hover": 15.93572,
+      "vmin_surge": 12.90162,
+      "vavg_surge": 13.02018,
+      "ilead_hover": 17.21563,
+      "ilead_surge": 176.2,
+      "icap_rms_hover": 2.51638,
+      "icap_rms_surge": 7.81272,
+      "label": "Full pack (16.4 V OCV), 1000 \u00b5F bulk",
+      "vocv": 16.4
+    },
+    "low": {
+      "vmin_hover": 14.17617,
+      "vmax_hover": 14.29572,
+      "vmin_surge": 11.26162,
+      "vavg_surge": 11.38018,
+      "ilead_hover": 17.21563,
+      "ilead_surge": 176.2,
+      "icap_rms_hover": 2.51638,
+      "icap_rms_surge": 7.81272,
+      "label": "20 % pack (14.76 V OCV), 1000 \u00b5F bulk",
+      "vocv": 14.76
+    },
+    "low_nocap": {
+      "vmin_hover": 14.12124,
+      "vmax_hover": 14.36289,
+      "vmin_surge": 11.003,
+      "vavg_surge": 11.38032,
+      "ilead_hover": 17.22003,
+      "ilead_surge": 176.1936,
+      "icap_rms_hover": 0.101968,
+      "icap_rms_surge": 0.487566,
+      "label": "20 % pack, bulk capacitor removed",
+      "vocv": 14.76
+    }
+  },
+  "esc": {
+    "sweep": [
+      {
+        "duty": 0.6,
+        "pmech": 19.653,
+        "ibus": -1.278792,
+        "iph_rms": 1.96819,
+        "iph_pp": 8.605229,
+        "vbus_pp": 0.08543627
+      },
+      {
+        "duty": 0.62,
+        "pmech": 35.47915,
+        "ibus": -2.325641,
+        "iph_rms": 3.24647,
+        "iph_pp": 12.06459,
+        "vbus_pp": 0.1163884
+      },
+      {
+        "duty": 0.64,
+        "pmech": 51.69559,
+        "ibus": -3.428719,
+        "iph_rms": 4.6284,
+        "iph_pp": 16.33135,
+        "vbus_pp": 0.153323
+      },
+      {
+        "duty": 0.66,
+        "pmech": 68.00069,
+        "ibus": -4.570141,
+        "iph_rms": 6.02117,
+        "iph_pp": 20.38671,
+        "vbus_pp": 0.1967425
+      },
+      {
+        "duty": 0.68,
+        "pmech": 84.3591,
+        "ibus": -5.744086,
+        "iph_rms": 7.42545,
+        "iph_pp": 24.52578,
+        "vbus_pp": 0.2395195
+      },
+      {
+        "duty": 0.7,
+        "pmech": 100.826,
+        "ibus": -6.957876,
+        "iph_rms": 8.84479,
+        "iph_pp": 28.60146,
+        "vbus_pp": 0.2757554
+      }
+    ],
+    "hover": {
+      "pmech": 60.13197,
+      "ibus": -4.015162,
+      "iph_rms": 5.35069,
+      "iph_pp": 18.5367,
+      "vbus_pp": 0.1775329,
+      "duty": 0.6501572170670527,
+      "pin": 63.4395596,
+      "eff": 0.9478623492840262,
+      "p_target": 59.97631199999999
+    },
+    "pop": {
+      "pmech": 107.2394,
+      "ibus": -8.011607,
+      "iph_rms": 7.11279,
+      "iph_pp": 20.58958,
+      "vbus_pp": 0.1276765,
+      "duty": 0.98,
+      "wm": 1436,
+      "vbus": 14.2,
+      "pin": 113.7648194,
+      "eff": 0.9426411483408025,
+      "p_need": 131.9098020096
+    },
+    "fit": [
+      {
+        "wm": 700,
+        "reff": 0.14008907255969802,
+        "keff": 0.00838614320486105,
+        "p": [
+          33.21024,
+          60.6216
+        ]
+      },
+      {
+        "wm": 1087,
+        "reff": 0.18335605017474582,
+        "keff": 0.008377666931258224,
+        "p": [
+          35.47915,
+          68.00069
+        ]
+      },
+      {
+        "wm": 1450,
+        "reff": 0.21223994486381534,
+        "keff": 0.008458657644560316,
+        "p": [
+          78.45179,
+          115.9299
+        ]
+      }
+    ],
+    "reff0": 0.07457540863398787,
+    "reff1": 9.637282721541409e-05,
+    "ke_eff": 0.00840748926022653
+  },
+  "buck": {
+    "vout_reg": 12.1495,
+    "vout_step_min": 12.04038,
+    "vout_ripple": 0.02905135,
+    "il_ripple": 0.6438351,
+    "t_brown": 0.001335008,
+    "vin_at_brown": 11.76685,
+    "t_drop": 0.001251751,
+    "vin_at_drop": 12.3175
+  }
+}
