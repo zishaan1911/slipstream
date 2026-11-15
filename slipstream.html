@@ -139,6 +139,7 @@ button:focus-visible{outline:2px solid var(--signal);outline-offset:1px}
       <div class="row"><label>Camera</label><div class="seg" data-group="cam"><button data-v="director">Auto</button><button data-v="arena">Arena</button><button data-v="chase">Chase</button><button data-v="gap">Gate</button><button data-v="fpv">Onboard</button></div></div>
       <div class="row"><label>Review</label><div class="seg" data-group="slow"><button data-v="on">0.16× at gate</button><button data-v="off">Real time</button></div></div>
       <div class="row"><label>Overlay</label><div class="seg" data-group="overlay"><button data-v="on">Trajectory</button><button data-v="off">None</button></div></div>
+      <div class="row"><label>Chassis</label><div class="seg" data-group="chassis"><button data-v="on">Shell on</button><button data-v="xray">X-ray</button><button data-v="off">Off</button></div></div>
       <div class="row"><label>Battery</label><div class="seg" data-group="pack"><button data-v="1">Fresh 100%</button><button data-v="0.5">50%</button><button data-v="0.2">20%</button></div></div>
       <div class="row"><label>V-comp</label><div class="seg" data-group="vcomp"><button data-v="on">On</button><button data-v="off">Off</button></div></div>
       <div class="actions"><button class="btn" id="b-reset">Reset trial</button><button class="btn" id="b-fold">Fold arms</button><button class="btn" id="b-clean">Hide UI</button></div>
@@ -748,7 +749,9 @@ function updateDroneShape(a) {
 const NET = { x: 2.6, z0: 2.6, z1: -14.6, h: 4.2 };
 const ROOM = { x: 7, z0: 6, z1: -20, h: 5 };
 const arena = { panels: [], screens: [] };
+const ARENA = new THREE.Group(); scene.add(ARENA);
 function buildArena() {
+  const scene = ARENA; // arena props live in their own group so renders can swap in a studio set
   const tile = canvasTex(1024, 1024, (g) => {
     for (let ty = 0; ty < 2; ty++) for (let tx = 0; tx < 2; tx++) {
       const v = 128 + Math.floor(rnd() * 10 - 5);
@@ -948,7 +951,7 @@ function desiredQuat(upD, yaw, roll, out) {
 }
 
 // body-frame sample points (guard rims + body hull), rebuilt from fold angle
-const PTS = []; for (let i = 0; i < 110; i++) PTS.push(new V3());
+const PTS = []; for (let i = 0; i < 124; i++) PTS.push(new V3());
 const HULL = [[-0.08, 0.016, -0.09], [0.08, 0.016, -0.09], [-0.08, 0.016, 0.09], [0.08, 0.016, 0.09],
   [-0.08, -0.018, -0.09], [0.08, -0.018, -0.09], [-0.08, -0.018, 0.09], [0.08, -0.018, 0.09],
   [-0.035, 0.016, -0.135], [0.035, 0.016, -0.135], [-0.035, 0.016, 0.135], [0.035, 0.016, 0.135],
@@ -956,7 +959,10 @@ const HULL = [[-0.08, 0.016, -0.09], [0.08, 0.016, -0.09], [-0.08, 0.016, 0.09],
   [-0.0185, 0.047, -0.043], [0.0185, 0.047, -0.043], [-0.0185, 0.047, 0.033], [0.0185, 0.047, 0.033],
   [-0.056, 0.0815, -0.1], [0.06, 0.0715, -0.086], [-0.05, 0.0775, 0.112], [0.058, 0.0915, 0.1], [0.012, 0.0975, 0.028],
   [-0.05, -0.06, -0.085], [0.05, -0.06, -0.085], [-0.05, -0.06, 0.085], [0.05, -0.06, 0.085],
-  [-0.042, 0.058, 0.152], [0.042, 0.058, 0.152], [0, 0.04, 0.12], [-0.062, 0.038, -0.07], [0.062, 0.038, 0.07]];
+  [-0.042, 0.058, 0.152], [0.042, 0.058, 0.152], [0, 0.04, 0.12], [-0.062, 0.038, -0.07], [0.062, 0.038, 0.07],
+  // white chassis shell
+  [-0.088, 0.016, -0.08], [0.088, 0.016, -0.08], [-0.088, 0.016, 0.08], [0.088, 0.016, 0.08], [-0.06, 0.058, -0.1], [0.06, 0.058, -0.1],
+  [-0.06, 0.058, 0.1], [0.06, 0.058, 0.1], [0, 0.058, -0.125], [0, 0.058, 0.125], [-0.05, 0.016, -0.128], [0.05, 0.016, 0.128], [-0.07, -0.026, 0], [0.07, -0.026, 0]];
 function buildPts(a) {
   let n = 0;
   ARMS.forEach(arm => {
@@ -1562,7 +1568,7 @@ function updatePower() {
 function syncButtons() {
   document.querySelectorAll('.seg').forEach(seg => {
     const grp = seg.dataset.group;
-    const cur = grp === 'mode' ? mode : grp === 'level' ? (cycle && mode === 'auto' ? 'cycle' : String(level)) : grp === 'cam' ? camMode : grp === 'overlay' ? (overlayOn ? 'on' : 'off') : grp === 'pack' ? String(E.soc0) : grp === 'vcomp' ? (E.vcomp ? 'on' : 'off') : (slowmo ? 'on' : 'off');
+    const cur = grp === 'mode' ? mode : grp === 'level' ? (cycle && mode === 'auto' ? 'cycle' : String(level)) : grp === 'cam' ? camMode : grp === 'overlay' ? (overlayOn ? 'on' : 'off') : grp === 'chassis' ? chassisMode : grp === 'pack' ? String(E.soc0) : grp === 'vcomp' ? (E.vcomp ? 'on' : 'off') : (slowmo ? 'on' : 'off');
     seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === cur)));
   });
   updateGapInfo();
@@ -1574,6 +1580,7 @@ document.querySelectorAll('.seg').forEach(seg => seg.addEventListener('click', e
   else if (grp === 'level') { if (v === 'cycle') { cycle = true; mode = 'auto'; resetRun(); } else setLevel(+v, 'pick'); }
   else if (grp === 'cam') camMode = v;
   else if (grp === 'overlay') { overlayOn = v === 'on'; traj.show(overlayOn); }
+  else if (grp === 'chassis') setChassis(v);
   else if (grp === 'pack') { freshPack(+v); resetRun(); setMsg(`Fresh pack SX-PACK-${pad2(E.packNo)} at ${Math.round(+v * 100)} % charge`); }
   else if (grp === 'vcomp') { E.vcomp = v === 'on'; setMsg('Battery voltage compensation ' + (E.vcomp ? 'on' : 'off')); }
   else slowmo = v === 'on';
@@ -1616,6 +1623,7 @@ let acc = 0, last = performance.now() / 1000, ledPhase = 0;
 const vis = { p: new V3(), q: new Q(), a: GEO.aOpen, m: [0, 0, 0, 0], k: 0 };
 const _rs = {};
 function frame() {
+  if (window.__recording) { requestAnimationFrame(frame); return; } // the render rig drives frames itself
   const now = performance.now() / 1000;
   const dtR = Math.min(0.05, now - last); last = now;
   tick(dtR);
@@ -1670,6 +1678,229 @@ function tick(dtR) {
   else renderer.render(scene, camera);
 }
 
+// ---------------------------------------------------------------- chassis: white injection-moulded shell with livery
+let SHELL = null, chassisMode = 'on';
+const SHELL_DIM = { HX: 0.094, HZ: 0.136, R: 0.055, BV: 0.016, y0: -0.026, y1: 0.056 };
+// pebble taper: the plan-view outline narrows toward the top and slightly toward the belly
+const shellScale = y => { const t = clamp((y - SHELL_DIM.y0) / (SHELL_DIM.y1 - SHELL_DIM.y0), 0, 1); return 1 - 0.2 * t * t - 0.1 * (1 - t) * (1 - t); };
+function taper(geo) {
+  const p = geo.attributes.position;
+  for (let i = 0; i < p.count; i++) { const k = shellScale(p.getY(i)); p.setX(i, p.getX(i) * k); p.setZ(i, p.getZ(i) * k); }
+  p.needsUpdate = true; geo.computeVertexNormals(); return geo;
+}
+function roundRect(hx, hz, r) {
+  const s = new THREE.Shape();
+  s.moveTo(-hx + r, -hz); s.lineTo(hx - r, -hz); s.quadraticCurveTo(hx, -hz, hx, -hz + r);
+  s.lineTo(hx, hz - r); s.quadraticCurveTo(hx, hz, hx - r, hz); s.lineTo(-hx + r, hz);
+  s.quadraticCurveTo(-hx, hz, -hx, hz - r); s.lineTo(-hx, -hz + r); s.quadraticCurveTo(-hx, -hz, -hx + r, -hz);
+  return s;
+}
+function buildChassis() {
+  const { HX, HZ, R, BV, y0, y1 } = SHELL_DIM;
+  const g = new THREE.Group(); drone.body.add(g); SHELL = g;
+  const geo = new THREE.ExtrudeGeometry(roundRect(HX - BV, HZ - BV, R - BV * 0.6), { depth: (y1 - y0) - 2 * BV, bevelEnabled: true, bevelThickness: BV, bevelSize: BV, bevelSegments: 8, curveSegments: 18 });
+  geo.rotateX(-Math.PI / 2); geo.translate(0, y0 + BV, 0); taper(geo);
+  const white = new THREE.MeshPhysicalMaterial({ color: 0xf3f3f1, roughness: .34, metalness: 0, clearcoat: .6, clearcoatRoughness: .25 });
+  mesh(geo, white, 0, 0, 0, g);
+  // orange parting line around the waist
+  const band = new THREE.ExtrudeGeometry(roundRect(HX + 0.0012, HZ + 0.0012, R), { depth: 0.0045, bevelEnabled: false, curveSegments: 18 });
+  band.rotateX(-Math.PI / 2); band.translate(0, -0.008, 0); taper(band);
+  mesh(band, new THREE.MeshPhysicalMaterial({ color: ORANGE, roughness: .3, metalness: .2, clearcoat: .5 }), 0, 0, 0, g);
+  // dark sensor surround on the nose, matching the depth camera
+  const nose = new THREE.ExtrudeGeometry(roundRect(0.05, 0.004, 0.003), { depth: 0.03, bevelEnabled: false });
+  nose.rotateX(-Math.PI / 2); nose.translate(0, 0.0255, -HZ * shellScale(0.04) + 0.003);
+  mesh(nose, new THREE.MeshPhysicalMaterial({ color: 0x15171a, roughness: .2, metalness: .3, clearcoat: 1 }), 0, 0, 0, g);
+  const decal = (tex, w, h, setup) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: .35, polygonOffset: true, polygonOffsetFactor: -3 }));
+    m.userData.decal = true; setup(m); g.add(m); return m;
+  };
+  // top livery: Seventh Axis mark + product name
+  const top = canvasTex(1024, 512, (c) => {
+    drawLogo(c, 40, 96, 320, '#15171a');
+    c.fillStyle = '#15171a'; c.font = '800 118px Archivo, system-ui, sans-serif'; c.fillText('SLIP', 392, 238);
+    c.fillStyle = '#f26a1b'; c.fillText('STREAM', 392, 352);
+    c.fillStyle = '#6b7178'; c.font = '600 40px "JetBrains Mono", monospace'; c.fillText('SEVENTH AXIS · SX-01', 396, 418);
+  });
+  decal(top, 0.112, 0.056, m => { m.rotation.x = -Math.PI / 2; m.position.set(0, y1 + 0.0004, -0.03); });
+  // rear vent grille over the companion computer fan
+  const vent = canvasTex(256, 128, (c) => { c.fillStyle = 'rgba(21,23,26,.85)'; for (let i = 0; i < 9; i++) { const x = 18 + i * 25; c.beginPath(); c.roundRect ? c.roundRect(x, 18, 12, 92, 6) : c.rect(x, 18, 12, 92); c.fill(); } });
+  decal(vent, 0.05, 0.025, m => { m.rotation.x = -Math.PI / 2; m.position.set(0, y1 + 0.0004, 0.072); });
+  // side markings
+  const side = canvasTex(1024, 256, (c) => {
+    drawLogo(c, 18, 38, 180, '#15171a');
+    c.fillStyle = '#15171a'; c.font = '700 120px Archivo, system-ui, sans-serif'; c.fillText('SX-01', 230, 172);
+    c.fillStyle = '#f26a1b'; c.fillRect(640, 108, 340, 26);
+    c.fillStyle = '#6b7178'; c.font = '600 34px "JetBrains Mono", monospace'; c.fillText('SEVENTH AXIS', 642, 196);
+  });
+  const yd = 0.014, slope = (shellScale(yd + 0.01) - shellScale(yd - 0.01)) * HX / 0.02;
+  [-1, 1].forEach(s => decal(side, 0.11, 0.0275, m => {
+    m.rotation.y = s * Math.PI / 2; m.position.set(s * (HX * shellScale(yd) + 0.0012), yd, 0.006);
+    m.rotateOnWorldAxis(new V3(0, 0, 1), s * -Math.atan(slope));
+  }));
+  fixColors(g);
+  setChassis(chassisMode);
+}
+function setShellOpacity(op) {
+  if (!SHELL) return;
+  SHELL.traverse(o => {
+    if (!o.material) return;
+    o.material.transparent = op < 1 || !!o.userData.decal;
+    o.material.opacity = op; o.material.depthWrite = op >= 1;
+    o.castShadow = op > 0.6;
+  });
+}
+function setChassis(mode) {
+  chassisMode = mode;
+  if (!SHELL) return;
+  SHELL.visible = mode !== 'off';
+  setShellOpacity(mode === 'xray' ? 0.16 : 1);
+}
+
+// ---------------------------------------------------------------- studio set + render rig (stills and video frames)
+const STUDIO = new THREE.Group(); STUDIO.visible = false; scene.add(STUDIO);
+(() => {
+  const fl = mesh(new THREE.PlaneGeometry(60, 60), std({ color: 0xf2f2f0, roughness: .86 }), 0, 0, 0, STUDIO);
+  fl.rotation.x = -Math.PI / 2; fl.castShadow = false;
+})();
+function setEnv(name) {
+  const st = name === 'studio';
+  ARENA.visible = !st; if (wallGroup) wallGroup.visible = !st; STUDIO.visible = st;
+  traj.show(!st && overlayOn);
+  const bg = st ? 0xe4e5e7 : BG;
+  scene.background = postOn ? lin(bg) : new THREE.Color(bg); scene.fog.color.copy(scene.background);
+  scene.fog.near = st ? 3.5 : 16; scene.fog.far = st ? 12 : 40;
+  hemi.intensity = st ? 0.65 : 0.5; key.intensity = st ? 2.3 : 1.7; fill.intensity = st ? 0.7 : 0.35;
+  if (st) { key.position.set(1.4, 5.4, 2.6); key.target.position.set(0, 1, 0); }
+}
+const RIG = { shot: null, n: 0 };
+const _o = new V3(), QI = new Q(), HOVER = new V3(0, 1.0, 0);
+const ease = t => t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t);
+// camera distance that fits a subject of width w (and height h) inside the frame at this fov and aspect
+const fitD = (w, h, fov) => Math.max((w / 2) / Math.tan(Math.atan(Math.tan(fov * DEG / 2) * camera.aspect)), (h / 2) / Math.tan(fov * DEG / 2));
+function poseDrone(p, q, a, m, dt) {
+  drone.root.position.copy(p); drone.root.quaternion.copy(q); updateDroneShape(a);
+  drone.props.forEach((pr, i) => {
+    pr.rotation.y += ((i === 0 || i === 3) ? 1 : -1) * Math.min(m * 1400 * dt, 0.9);
+    drone.discs[i].material.opacity = clamp((m - 0.1) * 1.4, 0, 0.5);
+  });
+  drone.leds.forEach(l => l.visible = m > 0.05);
+  drone.fan.rotation.y += dt * 60;
+}
+function look(px, py, pz, tx, ty, tz, fov) {
+  camera.position.set(px, py, pz); camera.up.set(0, 1, 0); camera.lookAt(tx, ty, tz);
+  if (camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); }
+}
+function renderNow() {
+  renderer.shadowMap.needsUpdate = true;
+  if (composer) { finalPass.uniforms.uTime.value = (RIG.n * 0.0333) % 100; composer.render(); } else renderer.render(scene, camera);
+}
+
+// exploded view: every part moves along a layer offset so the stack reads top to bottom
+let EXP = null;
+const _bb = new THREE.Box3(), _bc = new V3();
+function prepExplode() {
+  if (EXP) return;
+  EXP = [];
+  drone.root.position.set(0, 0, 0); drone.root.quaternion.identity(); updateDroneShape(GEO.aOpen); drone.root.updateMatrixWorld(true);
+  drone.body.children.forEach(o => {
+    if (drone.wires.includes(o)) return;
+    const ai = drone.arms.indexOf(o);
+    if (ai >= 0) {
+      const arm = ARMS[ai];
+      EXP.push({ o, p0: o.position.clone(), d: new V3(arm.side * 0.1, 0.06, arm.end * 0.1) });
+      o.children.forEach(mg => {
+        if (!mg.isGroup) return;
+        EXP.push({ o: mg, p0: mg.position.clone(), d: new V3(0, 0.08, 0) });
+        mg.children.forEach(cc => {
+          if (cc === drone.props[ai] || cc === drone.discs[ai]) { EXP.push({ o: cc, p0: cc.position.clone(), d: new V3(0, 0.13, 0) }); return; }
+          if (!cc.geometry) return;
+          cc.geometry.computeBoundingSphere();
+          if (cc.geometry.boundingSphere.radius > 0.05 || cc.position.length() > 0.035) EXP.push({ o: cc, p0: cc.position.clone(), d: new V3(0, 0.05, 0) });
+        });
+      });
+      return;
+    }
+    if (o === SHELL) { EXP.push({ o, p0: o.position.clone(), d: new V3(0, 0.34, 0) }); return; }
+    _bb.setFromObject(o); _bb.getCenter(_bc);
+    const y = _bc.y;
+    const dy = y < -0.03 ? -0.17 : y < -0.014 ? -0.11 : y < -0.006 ? -0.06 : y < 0.006 ? 0 : y < 0.02 ? 0.065 : y < 0.06 ? 0.15 : 0.25;
+    const dz = _bc.z * 0.55 + (_bc.z < -0.11 ? -0.08 : 0) + (_bc.z > 0.115 && y > 0.015 && y < 0.04 ? 0.05 : 0);
+    EXP.push({ o, p0: o.position.clone(), d: new V3(_bc.x * 0.55, dy, dz) });
+  });
+}
+function applyExplode(e) {
+  if (!EXP) return;
+  EXP.forEach(x => x.o.position.copy(x.p0).addScaledVector(x.d, e));
+  drone.wires.forEach(w => w.visible = e < 0.02);
+}
+
+const SHOTS = {
+  // slow hero orbit, chassis on, rotors at hover speed
+  hero: { env: 'studio', chassis: 'on', frames: 240, frame(i) {
+    const t = i / 30, a = 0.55 + t * 0.33;
+    poseDrone(_o.set(0, 1.0 + Math.sin(t * 1.3) * 0.008, 0), QI, GEO.aOpen, 0.55, 1 / 30);
+    const d = fitD(0.8, 0.45, 30);
+    look(Math.sin(a) * d, 1.0 + d * (0.36 + Math.sin(t * 0.45) * 0.05), Math.cos(a) * d, 0, 1.0, 0, 30);
+  } },
+  // shell fades to reveal the electronics, camera pushes in over the stack
+  xray: { env: 'studio', chassis: 'on', frames: 300, frame(i) {
+    const t = i / 30, u = ease((t - 3) / 5);
+    setShellOpacity(1 - ease((t - 1.6) / 1.6) * 0.9);
+    poseDrone(HOVER, QI, GEO.aOpen, 0.3, 1 / 30);
+    const a = 2.3 + t * 0.16, r = lerp(fitD(0.9, 0.5, 34), fitD(0.3, 0.2, 34), u);
+    look(Math.sin(a) * r, 1.0 + r * lerp(0.45, 0.6, u), Math.cos(a) * r, 0, 1.012, 0, 34);
+  }, done() { setChassis('on'); } },
+  // exploded view: assemble -> explode -> hold while orbiting -> reassemble
+  explode: { env: 'studio', chassis: 'on', frames: 330, init() { prepExplode(); }, frame(i) {
+    const t = i / 30;
+    applyExplode(ease((t - 0.8) / 2.2) * (1 - ease((t - 7.4) / 2.2)));
+    poseDrone(HOVER, QI, GEO.aOpen, 0, 1 / 30);
+    const a = 0.75 + t * 0.12;
+    const d = fitD(1.05, 0.85, 34);
+    look(Math.sin(a) * d, 1.06 + d * 0.3, Math.cos(a) * d, 0, 1.06, 0, 34);
+  }, done() { applyExplode(0); } },
+  // morphing: the four fold servos tuck the arms from X to I and back
+  fold: { env: 'studio', chassis: 'on', frames: 240, frame(i) {
+    const t = i / 30;
+    const f = ease((t - 1.0) / 0.45) * (1 - ease((t - 4.4) / 0.45));
+    poseDrone(HOVER, QI, lerp(GEO.aOpen, GEO.aFold, f), 0.5, 1 / 30);
+    const a = -0.5 + t * 0.12;
+    const d = fitD(0.85, 0.85, 36);
+    look(Math.sin(a) * d * 0.55, 1.0 + d * 0.84, Math.cos(a) * d * 0.55, 0, 1.0, -0.02, 36);
+  } },
+  // full autonomous knife-edge run through gate C, director cameras + automatic review
+  knife: { env: 'lab', chassis: 'on', frames: 450, sim: true, init() { simShot(2); }, frame() { tick(1 / 30); } },
+  slot: { env: 'lab', chassis: 'on', frames: 330, sim: true, init() { simShot(1); }, frame() { tick(1 / 30); } },
+};
+function simShot(lv) {
+  mode = 'auto'; cycle = false; slowmo = true; camMode = 'director';
+  freshPack(1); setLevel(lv, 'pick');
+  for (let k = 0; k < 240 * 10 && !(AP.phase === 'approach' && S.p.z < -0.8); k++) step();
+  cam.mode = '';
+}
+window.__REC = {
+  ready: false,
+  setup(w, h) {
+    window.__recording = true;
+    renderer.setPixelRatio(1); renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+    if (composer) { composer.setPixelRatio(1); composer.setSize(w, h); finalPass.uniforms.uRes.value.set(w, h); finalPass.uniforms.uGrain.value = 0.008; }
+    document.getElementById('hud').style.display = 'none';
+  },
+  begin(name) {
+    const s = SHOTS[name]; RIG.shot = s; RIG.n = 0;
+    setEnv(s.env); setChassis(s.chassis || 'on');
+    if (s.init) s.init();
+    return s.frames;
+  },
+  frame(i, q) {
+    RIG.n = i; RIG.shot.frame(i);
+    if (!RIG.shot.sim) renderNow();
+    return canvas.toDataURL('image/jpeg', q || 0.94);
+  },
+  state() { return { knife: S.knife, phase: AP.phase, replay: replay.on, s: +(S.p.z - WALL_Z).toFixed(2) }; },
+  end() { if (RIG.shot && RIG.shot.done) RIG.shot.done(); },
+};
+
 // headless test hook
 window.__SS = {
   S, AP, KN, LEVELS, replay, tick, cam: (m, a) => { camMode = m; if (a != null) replayCam.angle = a; }, setLevel: i => setLevel(i, 'pick'), setT(r, p, b, xc) { T_ROLL = r; if (p) T_POP = p; if (b != null) APEX_BIAS = b; if (xc != null) KNIFE_XCOMP = xc; },
@@ -1697,8 +1928,10 @@ startFonts.catch(() => {}).then(() => {
   buildArena();
   setLevel(0, 'cycle');
   fixColors(scene);
+  buildChassis();
   syncButtons();
   resize();
+  window.__REC.ready = true;
   requestAnimationFrame(frame);
 });
 })();
