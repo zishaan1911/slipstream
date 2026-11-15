@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+electronics/spice/build/
+electronics/spice/esc_fit.json
+renders/frames/
+renders/test*.jpg
+renders/t_*.jpg
