@@ -960,9 +960,10 @@ const HULL = [[-0.08, 0.016, -0.09], [0.08, 0.016, -0.09], [-0.08, 0.016, 0.09],
   [-0.056, 0.0815, -0.1], [0.06, 0.0715, -0.086], [-0.05, 0.0775, 0.112], [0.058, 0.0915, 0.1], [0.012, 0.0975, 0.028],
   [-0.05, -0.06, -0.085], [0.05, -0.06, -0.085], [-0.05, -0.06, 0.085], [0.05, -0.06, 0.085],
   [-0.042, 0.058, 0.152], [0.042, 0.058, 0.152], [0, 0.04, 0.12], [-0.062, 0.038, -0.07], [0.062, 0.038, 0.07],
-  // white chassis shell
-  [-0.088, 0.016, -0.08], [0.088, 0.016, -0.08], [-0.088, 0.016, 0.08], [0.088, 0.016, 0.08], [-0.06, 0.058, -0.1], [0.06, 0.058, -0.1],
-  [-0.06, 0.058, 0.1], [0.06, 0.058, 0.1], [0, 0.058, -0.125], [0, 0.058, 0.125], [-0.05, 0.016, -0.128], [0.05, 0.016, 0.128], [-0.07, -0.026, 0], [0.07, -0.026, 0]];
+  // streamlined chassis shell
+  [-0.092, 0.006, -0.032], [0.092, 0.006, -0.032], [-0.078, 0.006, 0.07], [0.078, 0.006, 0.07], [-0.087, 0.006, -0.07], [0.087, 0.006, -0.07],
+  [0, 0.06, -0.032], [-0.05, 0.05, -0.032], [0.05, 0.05, -0.032], [0, 0.05, 0.07], [0, 0.006, -0.152], [0, 0.006, 0.165],
+  [0, -0.03, -0.032], [-0.06, -0.022, -0.032]];
 function buildPts(a) {
   let n = 0;
   ARMS.forEach(arm => {
@@ -1678,65 +1679,101 @@ function tick(dtR) {
   else renderer.render(scene, camera);
 }
 
-// ---------------------------------------------------------------- chassis: white injection-moulded shell with livery
-let SHELL = null, chassisMode = 'on';
-const SHELL_DIM = { HX: 0.094, HZ: 0.136, R: 0.055, BV: 0.016, y0: -0.026, y1: 0.056 };
-// pebble taper: the plan-view outline narrows toward the top and slightly toward the belly
-const shellScale = y => { const t = clamp((y - SHELL_DIM.y0) / (SHELL_DIM.y1 - SHELL_DIM.y0), 0, 1); return 1 - 0.2 * t * t - 0.1 * (1 - t) * (1 - t); };
-function taper(geo) {
-  const p = geo.attributes.position;
-  for (let i = 0; i < p.count; i++) { const k = shellScale(p.getY(i)); p.setX(i, p.getX(i) * k); p.setZ(i, p.getZ(i) * k); }
-  p.needsUpdate = true; geo.computeVertexNormals(); return geo;
+// ---------------------------------------------------------------- chassis: streamlined white shell with livery
+// Teardrop fuselage lofted from superelliptic cross-sections: blunt nose, widest just ahead of the
+// centre of mass, tapering tail; a raised canopy over the battery and a flatter belly.
+let SHELL = null, chassisMode = 'on', SENSOR = [];
+const _bb = new THREE.Box3(), _bc = new V3();
+const SH = { z0: -0.152, z1: 0.165, W: 0.092, yc: 0.006, HT: 0.054, HB: 0.036, um: 0.38, n: 2.4 };
+const shS = u => u < SH.um ? (u - SH.um) / SH.um : (u - SH.um) / (1 - SH.um);
+const shW = u => { const s = shS(u); return s < 0 ? Math.sqrt(Math.max(0, 1 - s * s)) : Math.pow(Math.max(0, 1 - Math.pow(s, 2.2)), 0.6); };
+const shT = u => { const s = shS(u); return s < 0 ? Math.pow(Math.max(0, 1 - s * s), 0.5) : Math.pow(Math.max(0, 1 - Math.pow(s, 2.6)), 0.5); };
+const shB = u => { const s = shS(u); return s < 0 ? Math.pow(Math.max(0, 1 - s * s), 0.25) : Math.pow(Math.max(0, 1 - Math.pow(s, 2.2)), 0.3); };
+const shU = z => clamp((z - SH.z0) / (SH.z1 - SH.z0), 0, 1);
+const spow = (v, p) => Math.sign(v) * Math.pow(Math.abs(v), p);
+// surface heights for conforming decals
+const shTopY = (x, z) => { const u = shU(z), w = SH.W * shW(u), r = Math.min(1, Math.abs(x) / Math.max(w, 1e-6)); return SH.yc + SH.HT * shT(u) * Math.pow(1 - Math.pow(r, SH.n), 1 / SH.n); };
+const shSideX = (y, z) => { const u = shU(z), h = y >= SH.yc ? SH.HT * shT(u) : SH.HB * shB(u), r = Math.min(1, Math.abs(y - SH.yc) / Math.max(h, 1e-6)); return SH.W * shW(u) * Math.pow(1 - Math.pow(r, SH.n), 1 / SH.n); };
+
+function shellGeometry(nu = 140, nv = 96) {
+  const pos = [], col = [], idx = [];
+  for (let i = 0; i <= nu; i++) {
+    const u = (1 - Math.cos(Math.PI * i / nu)) / 2;          // denser rings at nose and tail
+    const w = SH.W * shW(u), t = SH.HT * shT(u), b = SH.HB * shB(u), z = SH.z0 + u * (SH.z1 - SH.z0);
+    for (let j = 0; j < nv; j++) {
+      const th = j / nv * Math.PI * 2, c = Math.cos(th), s = Math.sin(th);
+      const x = w * spow(c, 2 / SH.n), y = SH.yc + (s >= 0 ? t : b) * spow(s, 2 / SH.n);
+      pos.push(x, y, z);
+      // gloss-black wraparound visor over the depth camera
+      const k = (1 - smooth(0.15, 0.17, u)) * smooth(0.017, 0.021, y) * (1 - smooth(0.041, 0.045, y)); // sensor band at camera height
+      const v = lerp(0.86, 0.008, k);
+      col.push(v, v, v * (k > 0.5 ? 1.08 : 0.985));
+    }
+  }
+  for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
+    const a = i * nv + j, b = i * nv + (j + 1) % nv, c = (i + 1) * nv + j, d = (i + 1) * nv + (j + 1) % nv;
+    idx.push(a, b, c, b, d, c);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx); g.computeVertexNormals();
+  return g;
 }
-function roundRect(hx, hz, r) {
-  const s = new THREE.Shape();
-  s.moveTo(-hx + r, -hz); s.lineTo(hx - r, -hz); s.quadraticCurveTo(hx, -hz, hx, -hz + r);
-  s.lineTo(hx, hz - r); s.quadraticCurveTo(hx, hz, hx - r, hz); s.lineTo(-hx + r, hz);
-  s.quadraticCurveTo(-hx, hz, -hx, hz - r); s.lineTo(-hx, -hz + r); s.quadraticCurveTo(-hx, -hz, -hx + r, -hz);
-  return s;
+function smooth(a, b, x) { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); }
+// decal mesh that follows the shell surface; f(a, b) -> point, uv = (a, b)
+function surfacePatch(f, na = 28, nb = 14) {
+  const pos = [], uv = [], idx = [];
+  for (let j = 0; j <= nb; j++) for (let i = 0; i <= na; i++) { const p = f(i / na, j / nb); pos.push(p.x, p.y, p.z); uv.push(i / na, j / nb); }
+  for (let j = 0; j < nb; j++) for (let i = 0; i < na; i++) { const a = j * (na + 1) + i, b = a + 1, c = a + na + 1, d = c + 1; idx.push(a, b, c, b, d, c); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx); g.computeVertexNormals(); return g;
 }
 function buildChassis() {
-  const { HX, HZ, R, BV, y0, y1 } = SHELL_DIM;
   const g = new THREE.Group(); drone.body.add(g); SHELL = g;
-  const geo = new THREE.ExtrudeGeometry(roundRect(HX - BV, HZ - BV, R - BV * 0.6), { depth: (y1 - y0) - 2 * BV, bevelEnabled: true, bevelThickness: BV, bevelSize: BV, bevelSegments: 8, curveSegments: 18 });
-  geo.rotateX(-Math.PI / 2); geo.translate(0, y0 + BV, 0); taper(geo);
-  const white = new THREE.MeshPhysicalMaterial({ color: 0xf3f3f1, roughness: .34, metalness: 0, clearcoat: .6, clearcoatRoughness: .25 });
-  mesh(geo, white, 0, 0, 0, g);
-  // orange parting line around the waist
-  const band = new THREE.ExtrudeGeometry(roundRect(HX + 0.0012, HZ + 0.0012, R), { depth: 0.0045, bevelEnabled: false, curveSegments: 18 });
-  band.rotateX(-Math.PI / 2); band.translate(0, -0.008, 0); taper(band);
-  mesh(band, new THREE.MeshPhysicalMaterial({ color: ORANGE, roughness: .3, metalness: .2, clearcoat: .5 }), 0, 0, 0, g);
-  // dark sensor surround on the nose, matching the depth camera
-  const nose = new THREE.ExtrudeGeometry(roundRect(0.05, 0.004, 0.003), { depth: 0.03, bevelEnabled: false });
-  nose.rotateX(-Math.PI / 2); nose.translate(0, 0.0255, -HZ * shellScale(0.04) + 0.003);
-  mesh(nose, new THREE.MeshPhysicalMaterial({ color: 0x15171a, roughness: .2, metalness: .3, clearcoat: 1 }), 0, 0, 0, g);
-  const decal = (tex, w, h, setup) => {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: .35, polygonOffset: true, polygonOffsetFactor: -3 }));
-    m.userData.decal = true; setup(m); g.add(m); return m;
+  const shellMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, vertexColors: true, roughness: .3, metalness: 0, clearcoat: .8, clearcoatRoughness: .12 });
+  shellMat.userData.hdr = true; // vertex colours are already linear
+  mesh(shellGeometry(), shellMat, 0, 0, 0, g);
+  // orange accent stripe running along the waist, nose to tail
+  const pts = [];
+  for (let k = 0; k <= 64; k++) { const u = 0.03 + 0.94 * k / 64; pts.push(new V3(SH.W * shW(u) * 1.004, SH.yc + 0.003, SH.z0 + u * (SH.z1 - SH.z0))); }
+  for (let k = 64; k >= 0; k--) { const u = 0.03 + 0.94 * k / 64; pts.push(new V3(-SH.W * shW(u) * 1.004, SH.yc + 0.003, SH.z0 + u * (SH.z1 - SH.z0))); }
+  mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 260, 0.0017, 6, true), new THREE.MeshPhysicalMaterial({ color: ORANGE, roughness: .3, metalness: .2, clearcoat: .6 }), 0, 0, 0, g);
+  const decal = (tex, geo) => {
+    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: .3, polygonOffset: true, polygonOffsetFactor: -3 }));
+    m.userData.decal = true; m.castShadow = false; g.add(m); return m;
   };
-  // top livery: Seventh Axis mark + product name
+  const off = 0.0006;
+  // top livery on the canopy crest, readable from behind
   const top = canvasTex(1024, 512, (c) => {
     drawLogo(c, 40, 96, 320, '#15171a');
     c.fillStyle = '#15171a'; c.font = '800 118px Archivo, system-ui, sans-serif'; c.fillText('SLIP', 392, 238);
     c.fillStyle = '#f26a1b'; c.fillText('STREAM', 392, 352);
     c.fillStyle = '#6b7178'; c.font = '600 40px "JetBrains Mono", monospace'; c.fillText('SEVENTH AXIS · SX-01', 396, 418);
   });
-  decal(top, 0.112, 0.056, m => { m.rotation.x = -Math.PI / 2; m.position.set(0, y1 + 0.0004, -0.03); });
-  // rear vent grille over the companion computer fan
-  const vent = canvasTex(256, 128, (c) => { c.fillStyle = 'rgba(21,23,26,.85)'; for (let i = 0; i < 9; i++) { const x = 18 + i * 25; c.beginPath(); c.roundRect ? c.roundRect(x, 18, 12, 92, 6) : c.rect(x, 18, 12, 92); c.fill(); } });
-  decal(vent, 0.05, 0.025, m => { m.rotation.x = -Math.PI / 2; m.position.set(0, y1 + 0.0004, 0.072); });
-  // side markings
+  decal(top, surfacePatch((a, b) => { const x = lerp(-0.052, 0.052, a), z = lerp(0.006, -0.046, b); return new V3(x, shTopY(x, z) + off, z); }));
+  // vent slots over the companion computer fan
+  const vent = canvasTex(256, 128, (c) => { c.fillStyle = 'rgba(21,23,26,.85)'; for (let i = 0; i < 9; i++) { c.beginPath(); c.rect(18 + i * 25, 18, 12, 92); c.fill(); } });
+  decal(vent, surfacePatch((a, b) => { const x = lerp(-0.022, 0.022, a), z = lerp(0.112, 0.088, b); return new V3(x, shTopY(x, z) + off, z); }, 12, 6));
+  // side markings, readable from either side
   const side = canvasTex(1024, 256, (c) => {
     drawLogo(c, 18, 38, 180, '#15171a');
     c.fillStyle = '#15171a'; c.font = '700 120px Archivo, system-ui, sans-serif'; c.fillText('SX-01', 230, 172);
     c.fillStyle = '#f26a1b'; c.fillRect(640, 108, 340, 26);
     c.fillStyle = '#6b7178'; c.font = '600 34px "JetBrains Mono", monospace'; c.fillText('SEVENTH AXIS', 642, 196);
   });
-  const yd = 0.014, slope = (shellScale(yd + 0.01) - shellScale(yd - 0.01)) * HX / 0.02;
-  [-1, 1].forEach(s => decal(side, 0.11, 0.0275, m => {
-    m.rotation.y = s * Math.PI / 2; m.position.set(s * (HX * shellScale(yd) + 0.0012), yd, 0.006);
-    m.rotateOnWorldAxis(new V3(0, 0, 1), s * -Math.atan(slope));
-  }));
+  [-1, 1].forEach(s => decal(side, surfacePatch((a, b) => {
+    const z = s > 0 ? lerp(0.05, -0.05, a) : lerp(-0.05, 0.05, a), y = lerp(0.012, 0.037, b);
+    return new V3(s * (shSideX(y, z) + off), y, z);
+  })));
+  // the shell's visor covers the depth camera, so hide the bare sensor while the shell is on
+  drone.root.updateMatrixWorld(true);
+  SENSOR = drone.body.children.filter(o => {
+    if (o === SHELL || drone.arms.includes(o) || drone.wires.includes(o)) return false;
+    _bb.setFromObject(o); _bb.getCenter(_bc);
+    return _bc.z < -0.105 && _bc.y > 0.015 && Math.abs(_bc.x) < 0.05;
+  });
   fixColors(g);
   setChassis(chassisMode);
 }
@@ -1746,14 +1783,16 @@ function setShellOpacity(op) {
     if (!o.material) return;
     o.material.transparent = op < 1 || !!o.userData.decal;
     o.material.opacity = op; o.material.depthWrite = op >= 1;
-    o.castShadow = op > 0.6;
+    if (!o.userData.decal) o.castShadow = op > 0.6;
   });
+  SENSOR.forEach(o => o.visible = !SHELL.visible || op < 0.95);
 }
 function setChassis(mode) {
   chassisMode = mode;
   if (!SHELL) return;
   SHELL.visible = mode !== 'off';
   setShellOpacity(mode === 'xray' ? 0.16 : 1);
+  SENSOR.forEach(o => o.visible = mode !== 'on');
 }
 
 // ---------------------------------------------------------------- studio set + render rig (stills and video frames)
@@ -1797,7 +1836,6 @@ function renderNow() {
 
 // exploded view: every part moves along a layer offset so the stack reads top to bottom
 let EXP = null;
-const _bb = new THREE.Box3(), _bc = new V3();
 function prepExplode() {
   if (EXP) return;
   EXP = [];
@@ -1832,6 +1870,7 @@ function applyExplode(e) {
   if (!EXP) return;
   EXP.forEach(x => x.o.position.copy(x.p0).addScaledVector(x.d, e));
   drone.wires.forEach(w => w.visible = e < 0.02);
+  if (chassisMode === 'on') SENSOR.forEach(o => o.visible = e > 0.02);
 }
 
 const SHOTS = {
