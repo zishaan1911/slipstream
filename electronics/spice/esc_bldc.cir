@@ -1,0 +1,88 @@
+* SX-01 ESC power stage: 3-phase MOSFET bridge, six-step commutation with complementary PWM and
+* 15 deg timing advance, driving one 1100 KV / 14-pole BLDC (trapezoidal back-EMF) at a fixed rotor speed.
+.param vbus=15.8
+.param duty=0.61
+.param wm=1087
+.param pp=7
+.param ke=8.68m
+.param fpwm=48k
+.param rph=30m
+.param lph=12u
+.param adv=0.25
+.param te={6.283185307/(wm*pp)}
+.param tp={1/fpwm}
+.param emf={ke*wm/2}
+
+* --- supply: pack + leads share seen by one ESC, local bus capacitance
+Vbus vin 0 {vbus}
+Rsrc vin bus 15m
+Cbus bus cb1 220u
+Rcb  cb1 0 20m
+
+* --- commutation logic: electrical sector 0..5 and PWM carrier
+.func wrap6(x) { x - floor(x/6)*6 }
+.func useg(t) { (t - floor(t/te)*te)/te*6 }
+.func trap(u) { u<2 ? 1 : (u<3 ? 1-2*(u-2) : (u<5 ? -1 : -1+2*(u-5))) }
+Bsec sec 0 V = { floor(useg(time)) }
+Bpwm pwm 0 V = { (time - floor(time/tp)*tp) < duty*tp ? 1 : 0 }
+
+* high side PWM-ed in its two conducting sectors; low side on in its two sectors and
+* complementary (synchronous rectification) while its own high side is off
+BgAH gah 0 V = { (V(sec) < 1.5) ? V(pwm) : 0 }
+BgBH gbh 0 V = { (V(sec) > 1.5 && V(sec) < 3.5) ? V(pwm) : 0 }
+BgCH gch 0 V = { (V(sec) > 3.5) ? V(pwm) : 0 }
+BgAL gal 0 V = { (V(sec) > 2.5 && V(sec) < 4.5) ? 1 : ((V(sec) < 1.5) ? 1-V(pwm) : 0) }
+BgBL gbl 0 V = { (V(sec) > 4.5 || V(sec) < 0.5) ? 1 : ((V(sec) > 1.5 && V(sec) < 3.5) ? 1-V(pwm) : 0) }
+BgCL gcl 0 V = { (V(sec) > 0.5 && V(sec) < 2.5) ? 1 : ((V(sec) > 3.5) ? 1-V(pwm) : 0) }
+
+* --- bridge: MOSFETs as 3 mOhm switches with body diodes
+.model swm sw(vt=0.5 vh=0.05 ron=3m roff=10meg)
+.model dbody d(is=1e-10 rs=3m n=1.3 tt=20n cjo=1n)
+SAH bus pa gah 0 swm
+SAL pa 0  gal 0 swm
+SBH bus pb gbh 0 swm
+SBL pb 0  gbl 0 swm
+SCH bus pc gch 0 swm
+SCL pc 0  gcl 0 swm
+DAH pa bus dbody
+DAL 0 pa dbody
+DBH pb bus dbody
+DBL 0 pb dbody
+DCH pc bus dbody
+DCL 0 pc dbody
+
+* --- motor, star-connected: phase resistance, inductance, trapezoidal back-EMF
+*     adv = commutation advance in sectors (0.25 sector = 15 electrical degrees), as ESCs apply by default
+RA pa xa {rph}
+LA xa ya {lph}
+VsA ya ea 0
+BeA ea n V = { emf*trap(wrap6(useg(time)-adv)) }
+RB pb xb {rph}
+LB xb yb {lph}
+VsB yb eb 0
+BeB eb n V = { emf*trap(wrap6(useg(time)-2-adv)) }
+RC pc xc {rph}
+LC xc yc {lph}
+VsC yc ec 0
+BeC ec n V = { emf*trap(wrap6(useg(time)-4-adv)) }
+Rn n 0 100meg
+
+* electromagnetic power converted (feeds the propeller + friction)
+Bpm pm 0 V = { (V(ea)-V(n))*i(VsA) + (V(eb)-V(n))*i(VsB) + (V(ec)-V(n))*i(VsC) }
+
+.tran 0.05u 3m 0 0.1u
+
+.control
+set wr_singlescale
+set wr_vecnames
+run
+* {TW} = start of the last full electrical period (filled in by run_all.py)
+meas tran pmech AVG v(pm) from={TW} to=3m
+meas tran ibus AVG i(Vbus) from={TW} to=3m
+meas tran iph_rms RMS i(VsA) from={TW} to=3m
+meas tran iph_pp PP i(VsA) from={TW} to=3m
+meas tran vbus_pp PP v(bus) from={TW} to=3m
+wrdata {OUT} v(pa) v(n) i(VsA) i(VsB) i(VsC) v(sec) v(bus)
+quit
+.endc
+.end
