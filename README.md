@@ -51,8 +51,13 @@ The folded span (407 mm) is wider than the 270 mm slot, so Gannet passes on its 
    and lift is blended back in over the last 60° of the roll.
 5. **Level:** all rotors forward, arms open, and the drop from the coast is caught.
 
-It clears the slot by 25-27 mm on 100, 50 and 20 % packs and bottoms out 0.43-0.64 m above the floor afterwards.
+It clears the slot by 25-26 mm on 100, 50 and 20 % packs and bottoms out 0.43-0.64 m above the floor afterwards.
 `__SS.knifeTrace()` logs the state, roll and signed rotor speeds through the gate.
+
+`renders/videos/knife_blender.mp4` is the same run rendered in Blender (Eevee) with the infographic composited on:
+`python tools/knife_blender.py` exports the flight from the sim with eased slow motion (every moving part, props that
+stop and reverse with their rotors, wires bent by the fold as shape keys), keys it onto the studio scene with the gate
+wall built to match, renders and encodes. The full run takes about 1 h 45 min on this laptop.
 - **Battery:** start a fresh pack at 100, 50 or 20 % charge; toggle battery-voltage compensation.
 - **Chassis:** white shell, X-ray, or bare airframe.
 
