@@ -2053,6 +2053,25 @@ window.__REC = {
   },
   state() { return { knife: S.knife, phase: AP.phase, replay: replay.on, s: +(S.p.z - WALL_Z).toFixed(2) }; },
   end() { if (RIG.shot && RIG.shot.done) RIG.shot.done(); if (camMode === 'custom') camMode = 'director'; },
+  // pose the airframe at the origin with readable names, for export to Blender (tools/export_glb.py)
+  exportPrep() {
+    setChassis('on'); poseDrone(_o.set(0, 0, 0), QI, GEO.aOpen, 0, 0);
+    drone.props.forEach(p => p.rotation.y = 0);
+    SENSOR.forEach(o => o.visible = true); drone.discs.forEach(d => d.visible = false);
+    drone.leds.forEach(l => l.visible = true);
+    const inv = new Map(Object.entries(M).map(([k, v]) => [v, k]));
+    const nameMat = m => { if (!m.name) m.name = inv.get(m) || (m.map ? 'label' : 'mat_' + m.color.getHexString()); return m.name; };
+    drone.root.name = 'SX-01'; drone.body.name = 'Body'; SHELL.name = 'Shell'; drone.fan.name = 'Fan';
+    drone.arms.forEach((a, i) => { a.name = 'Arm_' + i; drone.props[i].name = 'Prop_' + i; drone.props[i].parent.name = 'Motor_' + i; });
+    drone.root.traverse(o => {
+      if (!o.isMesh) return;
+      let g = o.parent; while (g && !g.name) g = g.parent;
+      o.name = (g ? g.name : 'Part') + '_' + nameMat(o.material);
+    });
+    SENSOR.forEach(o => o.traverse(c => { if (c.isMesh) c.name = 'Sensor_' + c.name.replace(/^Body_/, ''); }));
+    drone.root.updateMatrixWorld(true);
+    return drone.root;
+  },
 };
 
 // headless test hook
