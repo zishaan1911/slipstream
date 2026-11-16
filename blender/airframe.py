@@ -77,7 +77,7 @@ def import_airframe(glb, hover, matrix=None):
             if base in LED: slot.material = emission('led_' + base, LED[base], 12); continue
             b = bsdf(m)
             if not b: continue
-            if base.startswith('mat_ffffff') or o.name.startswith('Shell_mat'):   # the white shell
+            if base.startswith('mat_ffffff') or base == 'shell_white' or o.name.startswith('Shell_mat'):   # canopy, belly, arm shells
                 m.name = 'shell_white'
                 b.inputs['Roughness'].default_value = 0.32; b.inputs['Clearcoat'].default_value = 0.9
                 b.inputs['Clearcoat Roughness'].default_value = 0.05; b.inputs['Subsurface'].default_value = 0.0
