@@ -36,6 +36,23 @@ Then open <http://localhost:8000/slipstream.html>.
 - **Controller:** Autonomous cycles through the gates. Assisted and Manual take W A S D, Space/Shift, Q/E;
   F folds, V holds a knife-edge roll.
 - **Gates:** A 1200 × 900 mm (open), B 520 × 1100 mm (fold), C 270 × 600 mm (fold + knife-edge).
+
+### Knife-edge through gate C
+
+The folded span (407 mm) is wider than the 270 mm slot, so Gannet passes on its side in five steps
+(`renders/videos/knife.mp4` shows them with live rotor speeds):
+
+1. **Pop:** a short ~1.4 g climb about 0.8 s out banks upward speed, so the unpowered coast peaks inside the slot.
+2. **Roll:** differential thrust rolls the folded airframe 90°, with collective cut to near zero.
+3. **Stop:** all four ESCs actively brake the props to 0 rpm before the slot. On its side, any thrust would push
+   it sideways into the slot edge, and with no thrust there is no attitude control, so it coasts at its own roll rate.
+4. **Push-pull:** once the tail clears, one side spins forward and the other in reverse (BLHeli_32 3D mode, a
+   reversed prop gives ~55 % thrust). Equal and opposite thrust doubles the roll torque with no net sideways force,
+   and lift is blended back in over the last 60° of the roll.
+5. **Level:** all rotors forward, arms open, and the drop from the coast is caught.
+
+It clears the slot by 25-27 mm on 100, 50 and 20 % packs and bottoms out 0.43-0.64 m above the floor afterwards.
+`__SS.knifeTrace()` logs the state, roll and signed rotor speeds through the gate.
 - **Battery:** start a fresh pack at 100, 50 or 20 % charge; toggle battery-voltage compensation.
 - **Chassis:** white shell, X-ray, or bare airframe.
 
