@@ -326,7 +326,7 @@ function elecStep(dt, tdes, servoRate) {
       const tq = EL.Kt * I - EL.kQ * m.w * Math.abs(m.w) - EL.Kt * EL.I0 * (Math.abs(m.w) > 1 ? Math.sign(m.w) : 0);
       m.w += tq / EL.J * h;
       if (!E.armed && Math.abs(m.w) < 1) m.w = 0;
-      m.i = I; m.T = m.w >= 0 ? EL.kT * m.w * m.w : -EL.kRev * EL.kT * m.w * m.w; F += m.T;
+      m.i = I; m.T = (m.w >= 0 ? EL.kT * m.w * m.w : -EL.kRev * PERT.kRev * EL.kT * m.w * m.w) * PERT.kT[i]; F += m.T;
       const pLoss = I * I * EL.Rds + 0.15 * Math.abs(I);
       m.ibus = E.armed ? d * I + pLoss / Math.max(6, E.vbus) : 0;
       ibus += m.ibus;
@@ -1407,6 +1407,7 @@ function step() {
   _up.set(0, 1, 0).applyQuaternion(S.q);
   const sp = S.v.length();
   _a.copy(_up).multiplyScalar(S.T).addScaledVector(S.v, -DRAG * sp); _a.y -= G;
+  if (PERT.gust && LUA.on && Math.abs(S.p.z - WALL_Z) < 2) _a.x += PERT.gust;   // sideways gust near the gate
   S.v.addScaledVector(_a, DT); S.p.addScaledVector(S.v, DT);
   if (RIGSIM) { S.p.copy(RIGSIM.p); S.v.set(0, 0, 0); S.w.x = 0; S.w.y = 0; }   // on the roll rig: bearings along the long axis
   collide(L);
@@ -2430,7 +2431,7 @@ function simShot(lv, slow = { gate: 0.16, pop: 1 }) {
 // mock of the ArduPilot scripting API (flight/sim_mock.lua) bound to this simulator: NED/FRD state in, Guided targets
 // and raw motor outputs out. While the script holds the outputs the ESCs take its signed duty (DShot 3D: 1500 =
 // stopped) and the body rates follow the rotors' actual thrust and drag torque.
-const LUA = { on: false, aux: 2, step: null, src: '', mock: '', ov: [0, 1, 2, 3].map(() => ({ pwm: 1500, until: -1 })), ovActive: false,
+const LUA = { on: false, aux: 2, q: [], step: null, src: '', mock: '', ov: [0, 1, 2, 3].map(() => ({ pwm: 1500, until: -1 })), ovActive: false,
   target: null, params: {}, msgs: [] };
 const AP_MOT = [1, 2, 0, 3];   // ArduPilot M1 front-right, M2 rear-left, M3 front-left, M4 rear-right -> sim arms
 const _af = new V3(), _ar = new V3(), _ad = new V3();
@@ -2439,18 +2440,22 @@ const AP_BRIDGE = {
   millis() { return S.t * 1000; },
   att(k) {   // ArduPilot euler angles (ZYX) from the body axes in NED
     _af.set(0, 0, -1).applyQuaternion(S.q); _ar.set(1, 0, 0).applyQuaternion(S.q); _ad.set(0, -1, 0).applyQuaternion(S.q);
-    if (k === 0) return Math.atan2(-_ar.y, -_ad.y);
+    if (k === 0) return Math.atan2(-_ar.y, -_ad.y) + PERT.attN * gauss() + PERT.rollBias;
     if (k === 1) return -Math.asin(clamp(-_af.y, -1, 1));
     return Math.atan2(_af.x, -_af.z);
   },
-  gyro(k) { return [-S.w.z, S.w.x, -S.w.y][k]; },   // FRD body rates
+  gyro(k) { return [-S.w.z, S.w.x, -S.w.y][k] + PERT.gyroN * gauss(); },   // FRD body rates
   vel(k) { return [-S.v.z, S.v.x, -S.v.y][k]; },
   pos(k) { return [-S.p.z, S.p.x, -S.p.y][k]; },
   mode() { return AP.phase === 'approach' ? 4 : 0; },   // Guided once the autopilot has taken off and lined up
   armed() { return E.armed; },
+  rpm(k) { return Math.abs(E.m[AP_MOT[k]].w) * 60 / (2 * Math.PI); },   // ESC telemetry: rpm magnitude per motor output
   volt() { return E.vbus; },
   findchan(fn) { return fn >= 33 && fn <= 36 ? fn - 33 : fn === 94 ? 4 : -1; },
-  override(ch, pwm, ms) { if (ch >= 0 && ch < 4) LUA.ov[ch] = { pwm, until: S.t + ms / 1000 }; },
+  override(ch, pwm, ms) {   // with PERT.lat the ESC sees each command that much later
+    if (ch < 0 || ch > 3) return;
+    if (PERT.lat > 0) LUA.q.push([S.t + PERT.lat, ch, pwm, ms]); else LUA.ov[ch] = { pwm, until: S.t + ms / 1000 };
+  },
   fnpwm(fn, pwm) { if (fn === 94) S.foldTarget = pwm > 1500 ? 1 : 0; },
   target(hasPos, pn, pe, pd, vn, ve, vd, an, ae, ad) { LUA.target = { pos: hasPos ? [pn, pe, pd] : null, vel: [vn, ve, vd], acc: [an, ae, ad] }; return true; },
   text(sev, t) { LUA.msgs.push([+S.t.toFixed(3), String(t)]); },
@@ -2466,7 +2471,7 @@ async function luaLoad() {
   if (!LUA.src) [LUA.mock, LUA.src] = await Promise.all(['flight/sim_mock.lua', 'flight/knife_edge.lua'].map(u => fetch(u).then(r => r.text())));
 }
 function luaReset(params) {
-  LUA.params = Object.assign({ KNF_ENABLE: 1 }, params); LUA.msgs = []; LUA.target = null; LUA.ovActive = false;
+  LUA.params = Object.assign({ KNF_ENABLE: 1 }, params); LUA.msgs = []; LUA.target = null; LUA.ovActive = false; LUA.q = [];
   LUA.ov.forEach(o => { o.until = -1; }); E.dutyOv.fill(null);
   window.__AP = AP_BRIDGE; AP_BRIDGE.src = LUA.src;
   LUA.step = fengari.load(LUA.mock, '=sim_mock.lua')();
@@ -2474,6 +2479,7 @@ function luaReset(params) {
 function luaTick() {
   if (LUA.step) LUA.step(S.t * 1000);
   let any = false;
+  while (LUA.q.length && LUA.q[0][0] <= S.t) { const [, ch, pwm, ms] = LUA.q.shift(); LUA.ov[ch] = { pwm, until: S.t + ms / 1000 }; }
   LUA.ov.forEach((o, ch) => { const on = S.t < o.until; E.dutyOv[AP_MOT[ch]] = on ? (o.pwm - 1500) / 500 : null; any = any || on; });
   LUA.ovActive = any;
 }
@@ -2500,7 +2506,12 @@ function luaBodyRates() {
 }
 
 // ---------------------------------------------------------------- moving parts, for animation exported to Blender
-let MOVERS = [], HW0 = null, RIGSIM = null;   // RIGSIM: roll rig, only the roll axis is free
+let MOVERS = [], HW0 = null, RIGSIM = null;
+// disturbances for robustness runs (__SS.perturb): per-motor thrust, reverse thrust, sensor noise and bias, gust, ESC latency
+const PERT = { kT: [1, 1, 1, 1], kRev: 1, gyroN: 0, attN: 0, rollBias: 0, gust: 0, lat: 0 };
+let _g2 = null, _seed = 1;
+const urand = () => { _seed = (_seed * 16807) % 2147483647; return _seed / 2147483647; };   // seeded: runs repeat
+const gauss = () => { if (_g2 != null) { const v = _g2; _g2 = null; return v; } const u = Math.max(1e-12, urand()), v = urand(), r = Math.sqrt(-2 * Math.log(u)); _g2 = r * Math.sin(2 * Math.PI * v); return r * Math.cos(2 * Math.PI * v); };   // RIGSIM: roll rig, only the roll axis is free
 const ANIM = { frames: [] };
 // objects whose local transform changes with the fold angle (arms, linkage, legs, rods), plus the props
 function findMovers() {
@@ -2819,6 +2830,10 @@ window.__SS = {
   S, AP, KN, LEVELS, replay, tick, cam: (m, a) => { camMode = m; if (a != null) replayCam.angle = a; }, setLevel: i => setLevel(i, 'pick'), setT(r, p, b, xc) { T_ROLL = r; if (p) T_POP = p; if (b != null) APEX_BIAS = b; if (xc != null) KNIFE_XCOMP = xc; },
   E,
   knTune(o = {}) { Object.assign(PP, o.pp || {}); if (o.lead != null) KN_LEAD = o.lead; return { PP, KN_LEAD }; },
+  perturb(o, seed = 1) {   // null clears
+    Object.assign(PERT, { kT: [1, 1, 1, 1], kRev: 1, gyroN: 0, attN: 0, rollBias: 0, gust: 0, lat: 0 }, o || {}); _seed = seed; _g2 = null;
+    return PERT;
+  },
   // what-if hardware for the flight-code runs: rotor inertia, ESC current limits and ramp, gate C height (null = as built)
   hw(o) {
     HW0 = HW0 || { J: EL.J, iLimit: EL.iLimit, iBrake: EL.iBrake, dutyRise: EL.dutyRise, dutySlew: EL.dutySlew, gy: LEVELS[2].gy };
