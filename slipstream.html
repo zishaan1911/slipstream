@@ -122,7 +122,7 @@ button:focus-visible{outline:2px solid var(--signal);outline-offset:1px}
     <div>
       <div class="co">Seventh Axis · Aerial Robotics</div>
       <h1>SlipStream</h1>
-      <div class="sub">SX-01 morphing quadrotor · narrow-gap traversal</div>
+      <div class="sub">Gannet SX-01 morphing quadrotor · narrow-gap traversal</div>
     </div>
   </header>
 
@@ -562,7 +562,7 @@ function beam(a, b, r, mat, parent, seg = 8) {
 }
 const P = (x, y, z) => new V3(x, y, z);
 
-// ---------------------------------------------------------------- drone model (SX-01 research airframe)
+// ---------------------------------------------------------------- drone model (Gannet SX-01 research airframe)
 const ARM_Y = -0.001;
 function armPlateGeo(L) {
   const sh = new THREE.Shape();
@@ -909,7 +909,7 @@ function buildDrone() {
   // stickers
   const logoSticker = canvasTex(256, 256, (g) => { g.fillStyle = '#f4f3ef'; g.fillRect(0, 0, 256, 256); drawLogo(g, 40, 30, 176, '#15171a'); g.fillStyle = '#15171a'; g.font = '600 22px "JetBrains Mono", monospace'; g.textAlign = 'center'; g.fillText('SEVENTH AXIS', 128, 236); });
   const tag = canvasTex(256, 64, (g) => {
-    g.fillStyle = '#f4f3ef'; g.fillRect(0, 0, 256, 64); g.fillStyle = '#15171a'; g.font = '700 22px "JetBrains Mono", monospace'; g.fillText('SX-01 · UNIT 03', 10, 26);
+    g.fillStyle = '#f4f3ef'; g.fillRect(0, 0, 256, 64); g.fillStyle = '#15171a'; g.font = '700 22px "JetBrains Mono", monospace'; g.fillText('GANNET · UNIT 03', 10, 26);
     for (let i = 0; i < 60; i++) if (rnd() > 0.45) g.fillRect(10 + i * 3.9, 36, rnd() > 0.5 ? 2 : 1, 20);
   });
 
@@ -2052,7 +2052,16 @@ function surfacePatch(f, na = 28, nb = 14) {
   g.setIndex(idx); g.computeVertexNormals(); return g;
 }
 const ubTopY = z => ubTop(z) + 0.0004;   // the deck is flat across its width
-const MARKERS = [[-0.016, -0.108], [0.014, -0.074], [-0.012, 0.118], [0.015, 0.1], [-0.004, 0.034]];   // flush retro-reflective dots (asymmetric)
+const MARKERS = [[-0.016, -0.108], [0.014, -0.08], [-0.012, 0.118], [0.012, 0.08], [-0.006, 0.064]];   // flush retro-reflective dots (asymmetric)
+// outer x of the shell's right flank at height y (the profile polyline, not just the widest point)
+function ubFlankX(z, y) {
+  const P = ubProfile(z); let best = 0;
+  for (let i = 0; i < P.length; i++) {
+    const a = P[i], b = P[(i + 1) % P.length];
+    if (a[0] > 0 && b[0] > 0 && a[1] !== b[1] && (a[1] - y) * (b[1] - y) <= 0) best = Math.max(best, a[0] + (y - a[1]) / (b[1] - a[1]) * (b[0] - a[0]));
+  }
+  return best;
+}
 function buildChassis() {
   const g = named(new THREE.Group(), 'Shell'); drone.body.add(g); SHELL = g;
   const ceramic = Object.assign(new THREE.MeshPhysicalMaterial({ color: 0xf4f4f2, vertexColors: true, roughness: 0.24, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.06, side: THREE.DoubleSide }), { name: 'shell_white' });
@@ -2067,14 +2076,22 @@ function buildChassis() {
     const m = named(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: 0.3, polygonOffset: true, polygonOffsetFactor: -3 })), 'Decal_' + name);
     m.userData.decal = true; m.castShadow = false; parent.add(m); return m;
   };
-  // deck livery, read from behind: logo, SLIPSTREAM, unit line
-  const top = canvasTex(1024, 512, (c) => {
-    drawLogo(c, 36, 92, 300, '#15171a');
-    c.fillStyle = '#15171a'; c.font = '800 112px Archivo, system-ui, sans-serif'; c.fillText('SLIP', 380, 230);
-    c.fillStyle = '#f26a1b'; c.fillText('STREAM', 380, 342);
-    c.fillStyle = '#6b7178'; c.font = '600 38px "JetBrains Mono", monospace'; c.fillText('SEVENTH AXIS · SX-01', 384, 410);
-  });
-  decal(top, surfacePatch((a, b) => new V3(lerp(-0.024, 0.024, a), ubTopY(lerp(0.0, -0.024, b)), lerp(0.0, -0.024, b)), 8, 4), 'deck');
+  // deck livery: the Seventh Axis mark and the GANNET wordmark, running nose-ward along the deck (reads from the right)
+  // mark + GANNET wordmark + orange rule + sub-line, fitted to the canvas
+  const livery = (c, sub, mark = true) => {
+    const W = c.canvas.width, h = c.canvas.height, pad = h * 0.07, m = mark ? h * 0.7 : 0;
+    if (mark) drawLogo(c, pad, (h - m) / 2, m, '#15171a');
+    const x0 = pad + (mark ? m + h * 0.14 : 0), room = W - x0 - pad;
+    let fs = h * 0.64; c.font = `800 ${fs}px Archivo, system-ui, sans-serif`;
+    const tw0 = c.measureText('GANNET').width; if (tw0 > room) fs *= room / tw0;
+    c.font = `800 ${fs}px Archivo, system-ui, sans-serif`; const tw = c.measureText('GANNET').width;
+    c.fillStyle = '#15171a'; c.fillText('GANNET', x0, h * 0.63);
+    c.fillStyle = '#f26a1b'; c.fillRect(x0 + fs * 0.03, h * 0.7, tw - fs * 0.06, h * 0.045);
+    c.fillStyle = '#6b7178'; c.font = `600 ${Math.round(h * 0.11)}px "JetBrains Mono", monospace`; c.fillText(sub, x0 + fs * 0.03, h * 0.89);
+  };
+  const DECK_Z = [0.054, -0.072];   // between the mocap dots: 126 x 44 mm
+  const top = canvasTex(2048, Math.round(2048 * 0.044 / (DECK_Z[0] - DECK_Z[1])), (c) => livery(c, 'SEVENTH AXIS · SX-01', false));
+  decal(top, surfacePatch((a, b) => { const z = lerp(DECK_Z[0], DECK_Z[1], a); return new V3(lerp(0.022, -0.022, b), ubTopY(z), z); }, 24, 6), 'deck');
   // thin orange pinstripe down each edge of the deck
   [-1, 1].forEach(sx => decal(canvasTex(16, 256, c => { c.fillStyle = '#f26a1b'; c.fillRect(4, 0, 8, 256); }),
     surfacePatch((a, b) => { const z = lerp(-0.13, 0.04, b); return new V3(sx * (ubDeckW(z) - 0.003) + lerp(-0.001, 0.001, a), ubTopY(z), z); }, 1, 40), 'pinstripe'));
@@ -2082,17 +2099,14 @@ function buildChassis() {
   const vent = canvasTex(256, 128, (c) => { c.fillStyle = 'rgba(21,23,26,.85)'; for (let i = 0; i < 9; i++) { c.beginPath(); c.rect(18 + i * 25, 18, 12, 92); c.fill(); } });
   decal(vent, surfacePatch((a, b) => { const z = lerp(0.112, 0.09, b); return new V3(lerp(-0.018, 0.018, a), ubTopY(z), z); }, 4, 4), 'vent');
   // side marking on the vertical flank, readable from either side
-  const side = canvasTex(1024, 256, (c) => {
-    drawLogo(c, 18, 38, 180, '#15171a');
-    c.fillStyle = '#15171a'; c.font = '700 120px Archivo, system-ui, sans-serif'; c.fillText('SX-01', 230, 172);
-    c.fillStyle = '#f26a1b'; c.fillRect(640, 108, 340, 26);
-    c.fillStyle = '#6b7178'; c.font = '600 34px "JetBrains Mono", monospace'; c.fillText('SEVENTH AXIS', 642, 196);
-  });
+  // GANNET along each flank's waist, projected from the side so it reads true side-on (the mark is on the deck)
+  const SIDE_Y = [-0.012, 0.026], SIDE_Z = 0.035;
+  const side = canvasTex(2048, Math.round(2048 * (SIDE_Y[1] - SIDE_Y[0]) / (2 * SIDE_Z)), (c) => livery(c, 'SX-01 · SEVENTH AXIS', false));
   [-1, 1].forEach(sx => decal(side, surfacePatch((a, b) => {
-    const z = sx > 0 ? lerp(0.042, -0.042, a) : lerp(-0.042, 0.042, a); return new V3(sx * (ubW(z) + 0.0004), lerp(-0.008, 0.012, b), z); }, 12, 2), 'side'));
+    const z = lerp(SIDE_Z, -SIDE_Z, sx > 0 ? a : 1 - a), y = lerp(SIDE_Y[0], SIDE_Y[1], b); return new V3(sx * (ubFlankX(z, y) + 0.0004), y, z); }, 48, 8), 'side'));
   // flush mocap dots
   const dotTex = canvasTex(128, 128, c => { c.fillStyle = '#c9ccd0'; c.beginPath(); c.arc(64, 64, 60, 0, Math.PI * 2); c.fill(); c.strokeStyle = '#15171a'; c.lineWidth = 5; c.stroke(); });
-  MARKERS.forEach(([x, z]) => decal(dotTex, surfacePatch((a, b) => new V3(x + lerp(-0.0065, 0.0065, a), ubTopY(z), z + lerp(-0.0065, 0.0065, b)), 1, 1), 'mocap'));
+  MARKERS.forEach(([x, z]) => decal(dotTex, surfacePatch((a, b) => new V3(x + lerp(-0.0065, 0.0065, a), ubTopY(z), z + lerp(0.0065, -0.0065, b)), 1, 1), 'mocap'));   // b runs nose-ward so the patch faces up
   // arms + pods ride on the arm pivots, so they fold with the arms; the arm number reads on each arm's top
   const armM = Object.assign(ceramic.clone(), { name: 'shell_white' }); armM.userData.hdr = true;
   const podM = Object.assign(new THREE.MeshPhysicalMaterial({ color: 0xf4f4f2, roughness: 0.24, clearcoat: 1, clearcoatRoughness: 0.06 }), { name: 'shell_white' });
@@ -2102,8 +2116,15 @@ function buildChassis() {
     named(mesh(armGeometry(), armM, 0, 0, 0, ag), 'ArmShell_' + i + '_body');
     named(mesh(podGeometry(), podM, 0, 0, -GEO.armL, ag), 'ArmShell_' + i + '_pod');
     named(mesh(new THREE.TorusGeometry(0.0172, 0.0009, 12, 128), ringM, 0, -0.0035, -GEO.armL, ag), 'ArmShell_' + i + '_ring').rotation.x = Math.PI / 2;
-    const tag = canvasTex(256, 64, c => { c.fillStyle = '#6b7178'; c.font = '700 40px "JetBrains Mono", monospace'; c.fillText(['FL', 'FR', 'RL', 'RR'][i] + ' · 0' + (i + 1), 8, 46); });
-    decal(tag, surfacePatch((a, b) => new V3(lerp(-0.006, 0.006, b), 0.003 + 0.002 * 0.35 + 0.0125 + 0.0005, lerp(-0.08, -0.13, a)), 2, 1), 'arm', ag);
+    // Seventh Axis mark + arm number on the arm's top, root to tip (follows the taper; 15 x 60 mm)
+    const tag = canvasTex(1024, 256, c => {
+      drawLogo(c, 12, 14, 228, '#15171a');
+      c.fillStyle = '#f26a1b'; c.fillRect(284, 50, 10, 156);
+      c.fillStyle = '#6b7178'; c.font = '700 120px "JetBrains Mono", monospace'; c.fillText(['FL', 'FR', 'RL', 'RR'][i] + ' · 0' + (i + 1), 326, 172);
+    });
+    decal(tag, surfacePatch((a, b) => {
+      const sd = lerp(0.095, 0.155, a), t = (sd - 0.012) / (GEO.armL - 0.02);
+      return new V3(lerp(0.0075, -0.0075, b), 0.003 + 0.002 * t + lerp(0.0165, 0.0075, smooth(0.0, 0.3, t)) + 0.0004, -sd); }, 16, 2), 'arm', ag);
     fixColors(ag);
     return ag;
   });
@@ -2302,6 +2323,7 @@ const SHOTS = {
   } },
   // close-up of the fold linkage: servo horn, pushrod and arm lever on the front-right hinge, shell off
   // chassis checks: three-quarter hero, low side with legs, folded (legs stowed)
+  looktop: { env: 'studio', chassis: 'on', frames: 1, frame() { poseDrone(_o.set(0, 0.2, 0), QI, GEO.aOpen, 0, 0); look(0.42, 0.95, 0.05, 0, 0.2, 0, 30); } },
   look34: { env: 'studio', chassis: 'on', frames: 1, frame() { poseDrone(_o.set(0, 0.2, 0), QI, GEO.aOpen, 0, 0); look(0.62, 0.42, -0.78, 0, 0.17, 0, 30); } },
   lookside: { env: 'studio', chassis: 'on', frames: 1, frame() { poseDrone(_o.set(0, 0.14, 0), QI, GEO.aOpen, 0, 0); look(0.9, 0.16, -0.25, 0, 0.1, 0, 30); } },
   lookfold: { env: 'studio', chassis: 'on', frames: 1, frame() { poseDrone(_o.set(0, 0.5, 0), QI, GEO.aFold, 0, 0); look(0.55, 0.62, -0.62, 0, 0.47, 0, 32); } },
@@ -2395,6 +2417,7 @@ function internalParts() {
   return out;
 }
 window.__SS = {
+  shell: { ubProfile, ubW, ubDeckW, ubTop, foldCavity },   // shell shape functions, for laying out decals
   foldClearance() {
     const v = new V3(), res = [];
     for (let deg = 45; deg >= 9; deg -= 2) {

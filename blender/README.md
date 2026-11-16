@@ -1,6 +1,6 @@
 # Blender studio
 
-Photoreal stills of SX-01 in Cycles. Built for Blender 2.93 LTS (runs on older GPUs; 3.x also works).
+Photoreal stills of Gannet SX-01 in Cycles. Built for Blender 2.93 LTS (runs on older GPUs; 3.x also works).
 
 1. `python tools/export_glb.py` exports the airframe from `slipstream.html` to `blender/sx01.glb`.
 2. `blender -b --python blender/build_scene.py` builds `slipstream_studio.blend`: dark studio, hanging dome lamp,

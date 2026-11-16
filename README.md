@@ -1,8 +1,8 @@
 # SlipStream
 
-**SX-01 morphing quadrotor · narrow-gap traversal · Seventh Axis Aerial Robotics**
+**Gannet SX-01 morphing quadrotor · narrow-gap traversal · Seventh Axis Aerial Robotics**
 
-SlipStream is a browser-based simulation of SX-01, a 1.40 kg research quadrotor whose arms fold on servos
+SlipStream is a browser-based simulation of Gannet (model SX-01), a 1.40 kg research quadrotor whose arms fold on servos
 so it can squeeze through gaps narrower than its own span, and roll knife-edge through slots narrower
 than its folded width.
 
