@@ -48,3 +48,7 @@ KNF_GATE_N      7.0
 KNF_GATE_E      0.0
 KNF_GATE_D      -1.95
 KNF_SPEED       5.0
+# Closest so far in the simulator (7" props, still clips gate C by 2 mm; see README.md):
+# KNF_IDLE -20, KNF_T_ROLL 0.3039, KNF_T_POP 0.6606, KNF_POP_END 0.0172, KNF_APEX 0.0159, KNF_XOFF 0.0197,
+# KNF_LEAD 0.0774, KNF_RI_WMAX 15.2, KNF_RI_TC 0.0305
+# Roll rig, rotor-aware roll (needs SERVO_BLH_BDMASK rpm telemetry): KNF_RIG 1, KNF_RMODE 1, KNF_RACC 4500, KNF_RBRK 3000

@@ -102,3 +102,19 @@ comparable.
 - `KNF_RMODE 1` needs rpm from every ESC (bidirectional DShot, `SERVO_BLH_BDMASK`). Telemetry gives the speed but
   not the direction, so the script tracks each rotor's direction from the commands it sent.
 - Not run yet: `tools/flight_robust.py` (noise, gusts, latency, motor spread) needs a setting that passes first.
+
+## Closest settings so far (still clip the slot)
+
+Worst case over 100 / 50 / 20 % packs, in the simulator. Both are local optima of `tools/flight_tune.py search`.
+
+| Hardware | Roll control | Misses by | Settings |
+|---|---|---|---|
+| 7" props (as built) | rate feedback, reversible roll-in | 2 mm | `KNF_IDLE -20 KNF_T_ROLL 0.3039 KNF_T_POP 0.6606 KNF_POP_END 0.0172 KNF_APEX 0.0159 KNF_XOFF 0.0197 KNF_LEAD 0.0774 KNF_RI_WMAX 15.2 KNF_RI_TC 0.0305` |
+| 6" props (`--hw '{"J":1.5e-5}'`) | rotor-aware (`KNF_RMODE 1`) | 3 mm | `KNF_RMODE 1 KNF_RACC 10000 KNF_RBRK 6500 KNF_RI_PRE 0.0333 KNF_APEX -0.0865 KNF_XOFF -0.0739 KNF_T_ROLL 0.3372 KNF_POP_END 0.0297 KNF_T_POP 0.6632 KNF_RMARG -14.9` |
+
+```bash
+python tools/flight_sitl.py --trace 1 --set KNF_IDLE=-20 KNF_T_ROLL=0.3039 KNF_T_POP=0.6606 KNF_POP_END=0.0172 KNF_APEX=0.0159 KNF_XOFF=0.0197 KNF_LEAD=0.0774 KNF_RI_WMAX=15.2 KNF_RI_TC=0.0305
+```
+
+Once the thrust stand has replaced the motor and ESC estimates, rerun the searches from these: a few millimetres
+either way is within what the stand will change.
