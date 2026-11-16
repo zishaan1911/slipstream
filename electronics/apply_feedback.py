@@ -21,5 +21,16 @@ src, n = re.subn(r'^  Kv: .*// motor-feedback.*$', mline, src, flags=re.M)
 if n != 1: raise SystemExit('motor line not found in slipstream.html')
 src, n = re.subn(r'^let MASS = [0-9.]+;', f"let MASS = {mot['all_up_mass_kg']};", src, flags=re.M)
 if n != 1: raise SystemExit('MASS line not found in slipstream.html')
+# measured on the thrust stand (tools/fit_thrust.py): reverse thrust ratio and the ESC's current limits and ramp
+if 'k_rev' in mot:
+    src, n = re.subn(r'kRev: [0-9.]+,', f"kRev: {mot['k_rev']},", src)
+    if n != 1: raise SystemExit('kRev not found in slipstream.html')
+    print('kRev', mot['k_rev'])
+if 'esc' in mot:
+    e = mot['esc']
+    for key, val in (('iLimit', e['i_limit']), ('iBrake', e['i_brake']), ('dutySlew', e['duty_fall']), ('dutyRise', e['duty_rise'])):
+        src, n = re.subn(rf'\b{key}: [0-9.]+,', f'{key}: {val},', src)
+        if n != 1: raise SystemExit(f'{key} not found in slipstream.html')
+    print('ESC', e)
 open(path, 'w', encoding='utf-8', newline='\n').write(src)
 print(line.strip()); print(mline.strip())
