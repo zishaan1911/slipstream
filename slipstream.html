@@ -824,10 +824,13 @@ function buildDrone() {
     beam(P(s * 0.03, 0.016, 0.128), P(s * 0.042, 0.058, 0.152), 0.0012, M.plastic, body, 6);
     beam(P(s * 0.039, 0.048, 0.146), P(s * 0.042, 0.058, 0.152), 0.0017, M.white, body, 8);
   });
-  // legs
-  [[-0.05, -0.085], [0.05, -0.085], [-0.05, 0.085], [0.05, 0.085]].forEach(([x, z]) => {
-    cyl(0.0048, 0.036, M.tpu, x, -0.037, z, body, 12);
-    mesh(new THREE.SphereGeometry(0.0062, 32, 22), M.rubber, x, -0.0538, z, body);
+  // landing gear: one bent carbon tube per side, front and rear legs in a single skid, clamped under the bottom plate
+  [-1, 1].forEach(s => {
+    const x0 = s * 0.05, x1 = s * 0.057, zc = 0.0555;
+    const pts = [P(x0, -0.0205, -0.085), P(x0 + s * 0.002, -0.034, -0.089), P(x1, -0.049, -0.082), P(x1, -zc, -0.062),
+                 P(x1, -zc, 0.062), P(x1, -0.049, 0.082), P(x0 + s * 0.002, -0.034, 0.089), P(x0, -0.0205, 0.085)];
+    named(mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'centripetal'), 240, 0.0042, 24), M.carbon, 0, 0, 0, body), s < 0 ? 'Gear_skid_L' : 'Gear_skid_R');
+    [-0.085, 0.085].forEach(z => named(box(0.014, 0.0075, 0.013, M.plastic, x0, -0.0222, z, body), 'Gear_clamp'));
   });
   // stickers
   const logoSticker = canvasTex(256, 256, (g) => { g.fillStyle = '#f4f3ef'; g.fillRect(0, 0, 256, 256); drawLogo(g, 40, 30, 176, '#15171a'); g.fillStyle = '#15171a'; g.font = '600 22px "JetBrains Mono", monospace'; g.textAlign = 'center'; g.fillText('SEVENTH AXIS', 128, 236); });
