@@ -1913,7 +1913,11 @@ function tick(dtR) {
     if (replay.on) $('play-t').textContent = 't = ' + (replay.t - replay.center >= 0 ? '+' : '−') + Math.abs(replay.t - replay.center).toFixed(3) + ' s';
   } else {
     const s = S.p.z - WALL_Z;
-    const target = (slowmo && !S.crashed && s < 1.25 && s > -TAIL_CLEAR - 0.35 && -S.v.z > 0.8) ? 0.16 : 1;
+    let target = 1;
+  if (slowmo && !S.crashed && -S.v.z > 0.8) {
+    if (s < 1.25 && (s > -TAIL_CLEAR - 0.35 || KN.state === 'recover')) target = SLOW.gate;
+    else if (KN.state === 'idle' && s > 0 && s / -S.v.z < T_ROLL + T_POP + 0.05) target = SLOW.pop;
+  }
     timeScale += (target - timeScale) * (1 - Math.exp(-dtR * (target < timeScale ? 14 : 5)));
     acc += dtR * timeScale;
     let n = 0;
@@ -2380,31 +2384,128 @@ const SHOTS = {
     look(0.058 + Math.sin(a) * 0.3, 1.075, -0.06 - Math.cos(a) * 0.3, 0.056, 1.006, -0.062, 24);
   } },
   // full autonomous knife-edge run through gate C, director cameras + automatic review
-  knife: { env: 'lab', chassis: 'on', frames: 420, sim: true, init() { simShot(2); }, frame: simFrame },
+  knife: { env: 'lab', chassis: 'on', frames: 600, sim: true, info: true, init() { simShot(2, { gate: 0.1, pop: 0.4 }); }, frame: simFrame },
   slot: { env: 'lab', chassis: 'on', frames: 420, sim: true, init() { simShot(1); }, frame: simFrame },
 };
-// scripted cameras for the gate runs: low chase on the approach, locked-off three-quarter view on the exit side
+// scripted cameras for the gate runs: low chase on the approach, then a camera high on the approach side of the wall:
+// it sees the roll-in, looks down through the slot and over the wall's top edge to the exit side,
+// so the wall never hides the airframe (4.1 m up: under the net truss, 1.5 m over the wall)
 const SC = { pos: new V3(), look: new V3(), phase: '', after: 0 };
 function simFrame() {
   const L = LEVELS[level], p = S.p, s = p.z - WALL_Z;
   pendingReplay = null;
-  if (s < -1.3) SC.after++;
-  if (SC.after > 24) return false;
-  const ph = s > 1.5 ? 'chase' : 'gate';
+  if (s < -1.3 && !KN_ROLLED(KN.state)) SC.after++;
+  if (SC.after > (L.knife ? 40 : 24)) return false;
+  const ph = s > 1.6 ? 'chase' : 'gate';
   let fov;
   if (ph === 'chase') { _cp.set(p.x + 0.32, p.y + 0.16, p.z + 1.05); _cl.set(p.x, p.y + 0.02, p.z - 0.7); fov = 46; }
-  else { _cp.set(L.gx + 0.78, L.gy + 0.12, WALL_Z - 1.1); _cl.copy(p); fov = clamp(2 * Math.atan(0.42 / _cp.distanceTo(p)) / DEG, 16, 60); }
+  else { _cp.set(L.gx + 1.15, 4.1, WALL_Z + 0.12); _cl.copy(p); fov = clamp(2 * Math.atan(0.62 / _cp.distanceTo(p)) / DEG, 16, 60); }
   if (ph !== SC.phase) { SC.pos.copy(_cp); SC.look.copy(_cl); SC.phase = ph; } else { SC.pos.lerp(_cp, ph === 'chase' ? 0.25 : 1); SC.look.lerp(_cl, 0.5); }
   look(SC.pos.x, SC.pos.y, SC.pos.z, SC.look.x, SC.look.y, SC.look.z, fov);
   tick(1 / 30);
   return true;
 }
-function simShot(lv) {
-  SC.phase = ''; SC.after = 0;
+function simShot(lv, slow = { gate: 0.16, pop: 1 }) {
+  SC.phase = ''; SC.after = 0; SLOW = slow;
   mode = 'auto'; cycle = false; slowmo = true; camMode = 'custom';
   freshPack(1); setLevel(lv, 'pick');
   for (let k = 0; k < 240 * 10 && !(AP.phase === 'approach' && S.p.z < -0.8); k++) step();
   cam.mode = '';
+}
+// ---------------------------------------------------------------- knife-edge infographic (composited onto video frames)
+const INFO = { c: null, up: new V3() };
+let SLOW = { gate: 0.16, pop: 1 };   // slow-motion factors near the gate and during the knife-edge pop-up
+const KN_STEPS = [
+  { key: 'pop', n: 1, tag: 'POP', title: 'Pop up',
+    text: () => `A short ${(1 + T_ROLL / T_POP).toFixed(1)} g climb banks upward speed, so the unpowered coast that follows peaks inside the slot.` },
+  { key: 'roll', n: 2, tag: 'ROLL', title: 'Roll 90°',
+    text: () => 'Differential thrust rolls the folded airframe onto its side. Collective is cut to near zero.' },
+  { key: 'stop', n: 3, tag: 'STOP', title: 'Rotors stopped',
+    text: () => 'All four ESCs brake the props to 0 rpm. On its side, any thrust would push Gannet sideways into the slot edge.' },
+  { key: 'recover', n: 4, tag: 'PUSH-PULL', title: 'Push-pull roll back',
+    text: () => 'Tail clear: one side spins forward, the other in reverse (3D mode). Double the roll torque, zero net sideways force.' },
+  { key: 'done', n: 5, tag: 'LEVEL', title: 'Level',
+    text: () => 'All four rotors forward again, arms open, and the drop from the coast is caught.' },
+];
+function knifeStep() {
+  const s = S.p.z - WALL_Z, vz = -S.v.z;
+  if (KN.state === 'idle') return s > 0 && AP.phase === 'approach' && s / Math.max(vz, 0.5) < T_ROLL + T_POP + 0.05 ? 0 : -1;
+  return { roll: 1, stop: 2, recover: 3, done: 4 }[KN.state];
+}
+function wrapText(g, text, x, y, maxW, lh) {
+  const words = text.split(' '); let line = '';
+  for (const w of words) { const t = line ? line + ' ' + w : w; if (g.measureText(t).width > maxW && line) { g.fillText(line, x, y); y += lh; line = w; } else line = t; }
+  if (line) g.fillText(line, x, y);
+}
+function rrect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+function drawKnifeInfo(g, W, H) {
+  const k = W / 1080, L = LEVELS[level], step = knifeStep();
+  const OR = '#f26a1b', INK = 'rgba(17,19,22,0.84)', MUTED = '#9aa0a6';
+  g.save(); g.scale(k, k); const w = 1080, h = H / k;
+  // ---- top card: steps + what is happening
+  g.fillStyle = INK; rrect(g, 36, 48, w - 72, 372, 28); g.fill();
+  g.fillStyle = MUTED; g.font = '600 25px "JetBrains Mono", monospace'; g.textBaseline = 'alphabetic';
+  g.fillText(`GANNET SX-01 · KNIFE-EDGE · ${Math.round(L.w * 1000)} MM SLOT`, 72, 100);
+  const pw = (w - 144 - 4 * 12) / 5;
+  KN_STEPS.forEach((st, i) => {
+    const x = 72 + i * (pw + 12), y = 128, act = i === step, done = step > i;
+    g.fillStyle = act ? OR : done ? 'rgba(242,106,27,0.22)' : 'rgba(255,255,255,0.08)'; rrect(g, x, y, pw, 64, 14); g.fill();
+    g.fillStyle = act ? '#15171a' : done ? '#f6c9ab' : '#7d838a';
+    g.font = `800 ${st.tag.length > 6 ? 22 : 26}px Archivo, system-ui, sans-serif`; g.textAlign = 'center';
+    g.fillText(`${st.n} ${st.tag}`, x + pw / 2, y + 42);
+  });
+  g.textAlign = 'left';
+  if (step >= 0) {
+    const st = KN_STEPS[step];
+    g.fillStyle = '#ffffff'; g.font = '800 56px Archivo, system-ui, sans-serif'; g.fillText(st.title, 72, 272);
+    g.fillStyle = '#d5d8dc'; g.font = '500 30px Archivo, system-ui, sans-serif'; wrapText(g, st.text(), 72, 322, w - 144, 40);
+  } else {
+    g.fillStyle = '#ffffff'; g.font = '800 56px Archivo, system-ui, sans-serif'; g.fillText('Approach', 72, 272);
+    g.fillStyle = '#d5d8dc'; g.font = '500 30px Archivo, system-ui, sans-serif';
+    wrapText(g, `Arms folded to a ${Math.round(SPAN_FOLD * 1000)} mm span. The slot is only ${Math.round(L.w * 1000)} mm wide, so Gannet has to pass on its side.`, 72, 322, w - 144, 40);
+  }
+  // ---- bottom card: rotor speeds (signed) and a rear view of the roll with the thrust of each side
+  const by = h - 430;
+  g.fillStyle = INK; rrect(g, 36, by, w - 72, 382, 28); g.fill();
+  g.fillStyle = MUTED; g.font = '600 24px "JetBrains Mono", monospace'; g.fillText('ROTOR SPEED · RPM', 72, by + 52);
+  const names = ['FL', 'FR', 'RL', 'RR'], RMAX = 17000, bx0 = 128, bw = 66, gap = 36, mid = by + 200, half = 120;
+  g.strokeStyle = 'rgba(255,255,255,0.25)'; g.lineWidth = 2; g.beginPath(); g.moveTo(bx0 - 16, mid); g.lineTo(bx0 + 4 * bw + 3 * gap + 16, mid); g.stroke();
+  g.fillStyle = MUTED; g.font = '500 18px "JetBrains Mono", monospace'; g.textAlign = 'right';
+  g.fillText('fwd', bx0 - 20, mid - half + 14); g.fillText('rev', bx0 - 20, mid + half);
+  E.m.forEach((m, i) => {
+    const rpm = m.w * 60 / (2 * Math.PI), x = bx0 + i * (bw + gap), v = clamp(rpm / RMAX, -1, 1);
+    g.fillStyle = 'rgba(255,255,255,0.07)'; g.fillRect(x, mid - half, bw, 2 * half);
+    g.fillStyle = v < 0 ? OR : '#ffffff';
+    if (v >= 0) g.fillRect(x, mid - v * half, bw, v * half); else g.fillRect(x, mid, bw, -v * half);
+    g.textAlign = 'center'; g.fillStyle = '#ffffff'; g.font = '800 26px Archivo, system-ui, sans-serif'; g.fillText(names[i], x + bw / 2, by + 362);
+    g.fillStyle = v < -0.01 ? OR : '#c9ccd0'; g.font = '600 21px "JetBrains Mono", monospace';
+    g.fillText(Math.abs(rpm) < 50 ? '0' : (rpm / 1000).toFixed(1) + 'k', x + bw / 2, by + 330);
+  });
+  g.textAlign = 'left';
+  // rear view: horizon, airframe rolled, an arrow per side along its thrust (orange = reverse)
+  const up = INFO.up.set(0, 1, 0).applyQuaternion(S.q), roll = Math.atan2(-up.x, up.y);
+  const cx = 820, cy = by + 196, R = 150;
+  g.strokeStyle = 'rgba(255,255,255,0.2)'; g.lineWidth = 2; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.stroke();
+  g.setLineDash([8, 10]); g.beginPath(); g.moveTo(cx - R, cy); g.lineTo(cx + R, cy); g.stroke(); g.setLineDash([]);
+  g.fillStyle = MUTED; g.font = '600 24px "JetBrains Mono", monospace'; g.fillText('REAR VIEW', 600, by + 52);
+  g.fillStyle = '#ffffff'; g.font = '800 34px Archivo, system-ui, sans-serif'; g.textAlign = 'right'; g.fillText(`${Math.round(roll / DEG)}°`, w - 72, by + 54); g.textAlign = 'left';
+  g.save(); g.translate(cx, cy); g.rotate(-roll);
+  const arm = 92;
+  g.fillStyle = '#f4f4f2'; rrect(g, -38, -22, 76, 44, 12); g.fill();          // shell
+  g.fillRect(-arm, -6, 2 * arm, 12);                                         // folded arms
+  g.fillStyle = '#2a2d31'; [-1, 1].forEach(sd => { g.fillRect(sd * arm - 26, -16, 52, 8); });   // props
+  const side = sd => E.m.reduce((a, m, i) => a + (ARMS[i].side === sd ? m.T : 0), 0);
+  [-1, 1].forEach(sd => {
+    const T = side(sd), len = clamp(Math.abs(T) / 14, 0, 1) * 95;
+    if (len < 6) return;
+    const dir = T > 0 ? -1 : 1, x = sd * arm, y0 = -22;   // thrust acts along the body's up axis (screen -y), reverse pushes down
+    g.strokeStyle = g.fillStyle = T > 0 ? '#ffffff' : OR; g.lineWidth = 8;
+    const y1 = dir < 0 ? y0 - len : 18 + len, ya = dir < 0 ? y0 : 18;
+    g.beginPath(); g.moveTo(x, ya); g.lineTo(x, y1); g.stroke();
+    g.beginPath(); g.moveTo(x - 17, y1); g.lineTo(x + 17, y1); g.lineTo(x, y1 + dir * 24); g.closePath(); g.fill();
+  });
+  g.restore();
+  g.restore();
 }
 window.__REC = {
   ready: false,
@@ -2424,10 +2525,16 @@ window.__REC = {
     RIG.n = i;
     if (RIG.shot.frame(i) === false) return null; // shot finished early
     if (!RIG.shot.sim) renderNow();
+    if (RIG.shot.info) {   // composite the manoeuvre infographic over the rendered frame
+      const ic = INFO.c || (INFO.c = document.createElement('canvas'));
+      ic.width = canvas.width; ic.height = canvas.height;
+      const g = ic.getContext('2d'); g.drawImage(canvas, 0, 0); drawKnifeInfo(g, ic.width, ic.height);
+      return ic.toDataURL('image/jpeg', q || 0.94);
+    }
     return canvas.toDataURL('image/jpeg', q || 0.94);
   },
   state() { return { knife: S.knife, phase: AP.phase, replay: replay.on, s: +(S.p.z - WALL_Z).toFixed(2) }; },
-  end() { if (RIG.shot && RIG.shot.done) RIG.shot.done(); if (camMode === 'custom') camMode = 'director'; },
+  end() { if (RIG.shot && RIG.shot.done) RIG.shot.done(); if (camMode === 'custom') camMode = 'director'; SLOW = { gate: 0.16, pop: 1 }; },
   // pose the airframe at the origin with readable names, for export to Blender (tools/export_glb.py)
   exportPrep() {
     setChassis('on'); poseDrone(_o.set(0, 0, 0), QI, GEO.aOpen, 0, 0);

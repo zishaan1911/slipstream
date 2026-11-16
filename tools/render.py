@@ -71,12 +71,13 @@ def videos(browser, names):
         subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-framerate', '30', '-i', os.path.join(fdir, 'f_%04d.jpg'),
                         '-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out], check=True)
         print(f'{name}: {n} frames -> {out}', flush=True)
-        if knife_frames:  # keep the frame closest to mid-gate as a 4:5 still
+        if knife_frames:  # keep the frame closest to mid-gate as a still (4:5 crop; full frame when it carries the infographic)
             mid = knife_frames[len(knife_frames) // 2]
             im = Image.open(os.path.join(fdir, f'f_{mid:04d}.jpg'))
             top = (1920 - 1350) // 2
             sdir = os.path.join(OUT, 'stills'); os.makedirs(sdir, exist_ok=True)
-            im.crop((0, top, 1080, top + 1350)).save(os.path.join(sdir, f'07_{name}_gate.png'))
+            still = im if name == 'knife' else im.crop((0, top, 1080, top + 1350))
+            still.save(os.path.join(sdir, f'07_{name}_gate.png'))
         if '--keep-frames' not in sys.argv:
             shutil.rmtree(fdir, ignore_errors=True)  # frames are large; the mp4 is the deliverable
 
