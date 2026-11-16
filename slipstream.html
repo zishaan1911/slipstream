@@ -227,6 +227,7 @@ const SPAN_OPEN = spanAt(GEO.aOpen), SPAN_FOLD = spanAt(GEO.aFold);
 const foldFrac = a => clamp((GEO.aOpen - a) / (GEO.aOpen - GEO.aFold), 0, 1.15);
 const rollArm = a => GEO.hingeX + GEO.armL * Math.sin(a);
 const ROLL_AUTH = a => rollArm(a) / rollArm(GEO.aOpen);
+const IXX = a => 0.0027 + 0.28 * rollArm(a) ** 2;   // roll inertia [kg m²]: core + four motor pods (~70 g each) at the roll arm
 const HALF_LEN_FOLD = GEO.hingeZ + GEO.armL * Math.cos(GEO.aFold) + GEO.guardR;
 
 // ---------------------------------------------------------------- course
@@ -241,14 +242,15 @@ LEVELS.forEach(L => {
   L.knife = L.w < SPAN_FOLD + 0.03;
 });
 // knife-edge plan
-// ~1.4 g pop-up; re-tuned for the 1.40 kg unibody on 2807 1300 KV motors (21 mm clearance at 100/50/20 % packs)
+// ~1.4 g pop-up; tuned for the 1.40 kg unibody on 2807 1300 KV motors, rotors braked to a stop through the slot
+// (25-27 mm clearance at 100/50/20 % packs)
 let T_ROLL = 0.30, T_POP = 0.8, ROLL = Math.PI / 2;
 // extents with the arms folded (legs stowed): mocap marker on top, gimbal camera underneath; legs deployed set the ground height
 const BODY_TOP = 0.0505, BODY_BOT = -0.082, GROUND_BOT = -(0.017 + 0.128 * Math.cos(20 * DEG));
-let KNIFE_XCOMP = 0.1; // pre-offset against the sideways impulse of the differential-thrust roll-in
+let KNIFE_XCOMP = 0.12; // pre-offset against the sideways impulse of the differential-thrust roll-in
 const knifeX = () => (BODY_TOP + BODY_BOT) / 2 + KNIFE_XCOMP; // centre the rolled silhouette in the slot
 const TAIL_CLEAR = HALF_LEN_FOLD + WALL_T / 2 + 0.03;
-let APEX_BIAS = -0.11;
+let APEX_BIAS = -0.12;
 const knifeLowY = L => L.gy + APEX_BIAS - 0.5 * G * T_ROLL * T_ROLL - (G * T_ROLL) * T_POP / 2;
 
 // ---------------------------------------------------------------- electrical system: LiPo pack, ESC + BLDC motors, power rails
@@ -257,6 +259,8 @@ const EL = {
   cells: 4, capAh: 2.2, R0: 0.0035, R1: 0.0025, C1: 6000, Rwire: 0.004, cthBat: 260, hBat: 0.55,
   Kv: 1300, Rm: 0.04, I0: 1.0, J: 2.7e-05, kT: 2.6e-06, kQ: 4.16e-08, // motor-feedback (electronics/motor.json: 2807 1300 KV)
   Rds: 0.004, idleDuty: 0.045,
+  kRev: 0.55,   // thrust of a pitched prop spun backwards (BLHeli_32 3D mode), relative to forward
+
   cthMot: 35, hMot0: 0.12, hMotW: 0.00045, cthEsc: 12, hEsc: 0.25,
   servoIdle: 0.12, servoMove: 0.85, pCompute: 13.5, pVision: 4.5, pCam: 2.2, pGimbal: 4.2, pFC: 2.6, etaBuck: 0.92, etaBec: 0.86,
   vNominalComp: 15.2, iLimit: 45, iBrake: 30, dutySlew: 20, dutyRise: 8,
@@ -277,7 +281,7 @@ const E = {
   soc: 1, soc0: 1, vrc: 0, vbus: 16.8, vcell: 4.2, vcellF: 4.2, ocv: 16.8, ibat: 0, tBat: 24, mAh: 0, Wh: 0, vminTrial: 99, packNo: 7,
   m: [0, 1, 2, 3].map(() => ({ w: 0, i: 0, d: 0, T: 0, ibus: 0, tMot: 24, tEsc: 24 })),
   servo: { v: 7.4, i: 0 }, r12: { v: 12, i: 0, on: true }, r5: { v: 5, i: 0 },
-  armed: false, vcomp: true, auth: 1, sat: 0, headroom: 1, brownout: false, lvc: 0, visionLoad: false,
+  armed: false, brake: false, vcomp: true, auth: 1, sat: 0, headroom: 1, brownout: false, lvc: 0, visionLoad: false,
 };
 function freshPack(soc) {
   E.soc = E.soc0 = soc; E.vrc = 0; E.mAh = 0; E.Wh = 0; E.tBat = 24; E.packNo++;
@@ -301,19 +305,24 @@ function elecStep(dt, tdes, servoRate) {
       const m = E.m[i];
       // flight controller: desired thrust -> rotor speed -> duty (feed-forward + RPM feedback)
       let d = 0;
-      if (E.armed) {
-        const wT = Math.sqrt(Math.max(0, tdes[i]) / EL.kT), iss = EL.kQ * wT * wT / EL.Kt + EL.I0;
-        d = (EL.keEff * wT + rEff(wT) * iss) / Math.max(6, vref) + clamp(0.00035 * (wT - m.w), -0.08, 0.08);
-        d = clamp(Math.max(d, EL.idleDuty), 0, 1);
-        d = clamp(d, m.d - EL.dutySlew * h, m.d + EL.dutyRise * h); // ESC throttle ramp (slower rising)
-        if (d >= 0.999) sat++;
+      if (E.armed && E.brake) d = clamp(-0.002 * m.w, -0.25, 0.25);   // active brake: hold the rotor at 0 rpm
+      else if (E.armed) {
+        // signed thrust set-point: negative = reverse thrust (3D mode, the prop spun backwards)
+        const rev = tdes[i] < 0, wT = (rev ? -1 : 1) * Math.sqrt(Math.abs(tdes[i]) / (EL.kT * (rev ? EL.kRev : 1)));
+        const iss = EL.kQ * wT * wT / EL.Kt + EL.I0;
+        d = (EL.keEff * wT + (rev ? -1 : 1) * rEff(Math.abs(wT)) * iss) / Math.max(6, vref) + clamp(0.00035 * (wT - m.w), -0.08, 0.08);
+        d = rev ? clamp(Math.min(d, -EL.idleDuty), -1, 0) : clamp(Math.max(d, EL.idleDuty), 0, 1);
+        const rate = Math.abs(d) > Math.abs(m.d) && d * m.d >= 0 ? EL.dutyRise : EL.dutySlew;   // ESC throttle ramp (slower rising)
+        d = clamp(d, m.d - rate * h, m.d + rate * h);
+        if (Math.abs(d) >= 0.999) sat++;
       }
       m.d = d;
-      // ESC + BLDC: averaged phase voltage d·Vbus against back-EMF Ke·ω; active braking allows negative current
-      const I = E.armed ? clamp((d * E.vbus - EL.keEff * m.w) / rEff(m.w), -EL.iBrake, EL.iLimit) : 0; // ESC current limit
-      const tq = EL.Kt * I - EL.kQ * m.w * m.w - EL.Kt * EL.I0 * (m.w > 1 ? 1 : 0);
-      m.w = Math.max(0, m.w + tq / EL.J * h);
-      m.i = I; m.T = EL.kT * m.w * m.w; F += m.T;
+      // ESC + BLDC: averaged phase voltage d·Vbus against back-EMF Ke·ω; active braking allows current against the drive
+      const I = E.armed ? clamp((d * E.vbus - EL.keEff * m.w) / rEff(Math.abs(m.w)), d < 0 ? -EL.iLimit : -EL.iBrake, d < 0 ? EL.iBrake : EL.iLimit) : 0; // ESC current limit
+      const tq = EL.Kt * I - EL.kQ * m.w * Math.abs(m.w) - EL.Kt * EL.I0 * (Math.abs(m.w) > 1 ? Math.sign(m.w) : 0);
+      m.w += tq / EL.J * h;
+      if (!E.armed && Math.abs(m.w) < 1) m.w = 0;
+      m.i = I; m.T = m.w >= 0 ? EL.kT * m.w * m.w : -EL.kRev * EL.kT * m.w * m.w; F += m.T;
       const pLoss = I * I * EL.Rds + 0.15 * Math.abs(I);
       m.ibus = E.armed ? d * I + pLoss / Math.max(6, E.vbus) : 0;
       ibus += m.ibus;
@@ -1203,7 +1212,7 @@ function buildPts(a) {
   PTS.n = n;
 }
 
-function makeCmd() { return { pos: [null, null, null], vel: [0, 0, 0], ff: [0, 0, 0], yaw: 0, roll: 0, ballistic: false, idle: false, maxTilt: 40 * DEG, vg: KVV }; }
+function makeCmd() { return { pos: [null, null, null], vel: [0, 0, 0], ff: [0, 0, 0], yaw: 0, roll: 0, ballistic: false, stop: false, pushPull: false, knifeRoll: false, idle: false, maxTilt: 40 * DEG, vg: KVV }; }
 
 function setPhase(p) { AP.phase = p; AP.t = 0; AP.hold = 0; }
 
@@ -1226,8 +1235,8 @@ function autopilot(cmd, s, L) {
       if (L.knife) {
         knifeRun(cmd, s, vz, L, true);
       } else cmd.pos[1] = L.gy;
-      if (s < -TAIL_CLEAR - 0.15 && KN.state !== 'roll') S.foldTarget = 0;
-      if (s < -1.4) setPhase('exit');
+      if (s < -TAIL_CLEAR - 0.15 && !KN_ROLLED(KN.state)) S.foldTarget = 0;
+      if (s < -1.4 && !KN_ROLLED(KN.state)) setPhase('exit');   // never hand over mid-manoeuvre
       break;
     }
     case 'exit':
@@ -1246,7 +1255,12 @@ function autopilot(cmd, s, L) {
   }
 }
 
-// knife-edge: pop-up on a ballistic arc whose apex sits in the slot, roll 90°, coast through, roll back
+// knife-edge: pop-up on a ballistic arc whose apex sits in the slot, roll 90°, brake the rotors to a stop and coast
+// through (on its side, any thrust would push sideways), then roll back with push-pull: one side forward, the other
+// in reverse (3D mode), equal thrust, so double the roll torque and no net force
+const KN_ROLLED = st => st === 'roll' || st === 'stop' || st === 'recover';
+const PP = { k: 8, lag: 0.07, wmax: 9, tc: 0.05, upDone: 0.94, wDone: 3, vgDone: 3.2, lift: 1.5, brakeLead: 0.04, brakeTol: 4 * DEG, brakeRate: 2 };   // push-pull roll-back gains
+let KN_LEAD = 0.06;   // roll-in rate lead [s]
 function knifeRun(cmd, s, vz, L, planHeight) {
   const tC = s / Math.max(vz, 0.5);
   if (KN.state === 'idle') {
@@ -1258,10 +1272,21 @@ function knifeRun(cmd, s, vz, L, planHeight) {
     if (s > 0 && tC <= T_ROLL && vz > 1) { KN.state = 'roll'; toastFlash('KNIFE-EDGE', '', 'k'); }
   }
   if (KN.state === 'roll') {
-    cmd.ballistic = true; cmd.roll = ROLL;
-    if (s < -TAIL_CLEAR) KN.state = 'done';
+    cmd.ballistic = true; cmd.roll = ROLL; cmd.knifeRoll = true;
+    // brake once the roll will settle on 90° by itself while the rotors spin down (authority fades with them)
+    const rollNow = Math.atan2(-_up.x, _up.y);
+    if (Math.abs(rollNow + S.w.z * PP.brakeLead - ROLL) < PP.brakeTol && Math.abs(S.w.z) < PP.brakeRate) { KN.state = 'stop'; KN.tStop = S.t; }
+    else if (s < -TAIL_CLEAR) { KN.state = 'recover'; KN.tRec = S.t; }
   }
-  if (KN.state === 'done') { cmd.pos[1] = null; cmd.vel[1] = 0; cmd.vg = 3.2; }
+  if (KN.state === 'stop') {
+    cmd.ballistic = true; cmd.roll = ROLL; cmd.stop = true;
+    if (s < -TAIL_CLEAR) { KN.state = 'recover'; KN.tRec = S.t; }
+  }
+  if (KN.state === 'recover') {
+    cmd.ballistic = true; cmd.roll = 0; cmd.pushPull = true;
+    if (_up.y > PP.upDone && Math.abs(S.w.z) < PP.wDone) { KN.state = 'done'; KN.tLevel = S.t; }
+  }
+  if (KN.state === 'done') { cmd.pos[1] = null; cmd.vel[1] = 0; cmd.vg = PP.vgDone; }
 }
 
 function manual(cmd, s, L, assist) {
@@ -1277,7 +1302,7 @@ function manual(cmd, s, L, assist) {
   const vz = -S.v.z;
   let fold = MAN.fold;
   if (assist && L.fold && s > -TAIL_CLEAR - 0.1 && s < HALF_LEN_FOLD + Math.max(vz, 0.5) * (L.knife ? 0.8 : 0.55)) fold = true;
-  if (KN.state === 'roll') fold = true;
+  if (KN_ROLLED(KN.state)) fold = true;
   S.foldTarget = fold ? 1 : 0;
   if (assist && L.knife) knifeRun(cmd, s, vz, L, false);
   else if (K.KeyV) { cmd.ballistic = true; cmd.roll = ROLL; }
@@ -1321,9 +1346,18 @@ function step() {
     if (_qe.w < 0) { _qe.x = -_qe.x; _qe.y = -_qe.y; _qe.z = -_qe.z; _qe.w = -_qe.w; }
     const ff = clamp(foldFrac(S.a), 0, 1), rauth = ROLL_AUTH(S.a), pauth = lerp(1, 1.29, ff);
     _wc.set(clamp(2 * _qe.x * KATT, -MAXRATE, MAXRATE), clamp(2 * _qe.y * KYAW, -6, 6), clamp(2 * _qe.z * KATT, -MAXRATE, MAXRATE));
+    if (cmd.knifeRoll) _wc.z = clamp(KATT * (2 * Math.asin(clamp(_qe.z, -1, 1)) - S.w.z * KN_LEAD), -MAXRATE, MAXRATE);   // lead: no overshoot past 90 deg
     const tp = 0.022 / pauth, tr = 0.022 / rauth, ty = 0.08;
     const ex = _wc.x - S.w.x, ey = _wc.y - S.w.y, ez = _wc.z - S.w.z;
-    S.w.x += ex * (DT / (tp + DT)) * E.auth; S.w.y += ey * (DT / (ty + DT)); S.w.z += ez * (DT / (tr + DT)) * E.auth;
+    // control authority comes from rotor thrust (∝ ω²): it fades to nothing as the rotors brake to a stop
+    const wMean = (Math.abs(E.m[0].w) + Math.abs(E.m[1].w) + Math.abs(E.m[2].w) + Math.abs(E.m[3].w)) / 4;
+    const ca = cmd.stop ? E.auth * clamp(wMean / Math.sqrt(MASS * G / 4 / EL.kT), 0, 1) ** 2 : E.auth;
+    S.w.x += ex * (DT / (tp + DT)) * ca; S.w.y += ey * (DT / (ty + DT)) * (cmd.stop ? ca : 1);
+    if (cmd.pushPull) {
+      // push-pull roll back: the roll rate is driven by the rotors' actual (signed) thrust about the long axis
+      let tau = 0; ARMS.forEach((arm, i) => { tau += arm.side * E.m[i].T; }); tau *= rollArm(S.a);
+      S.w.z += (tau / IXX(S.a) - 0.6 * S.w.z) * DT;
+    } else S.w.z += ez * (DT / (tr + DT)) * ca;
     // reaction wobble from the arms swinging
     S.w.x += S.aAcc * 0.0009; S.w.z += S.aAcc * 0.00035;
     if (cmd.idle && S.onGround) { S.w.multiplyScalar(0.8); }
@@ -1333,9 +1367,19 @@ function step() {
     E.visionLoad = mode === 'auto' && AP.phase === 'approach';
     const Fb = MASS * Tcmd / 4;
     const coast = cmd.ballistic && Math.abs(_up.y) < 0.35 ? 0.2 : 1; // rolled past ~70°: coast with motors near idle
-    ARMS.forEach((arm, i) => {
+    E.brake = cmd.stop;
+    if (cmd.pushPull) {
+      // equal and opposite thrust per side: pure roll torque, zero net force (the reversed side is capped by kRev)
+      // rate command from the roll error predicted PP.lag ahead (rotors need ~0.1 s to reverse), capped at PP.wmax
+      const th = 2 * Math.asin(clamp(_qe.z, -1, 1)), wcz = clamp(PP.k * (th - S.w.z * PP.lag), -PP.wmax, PP.wmax);
+      const cap = 0.9 * EL.kRev * maxThrustAt(E.vbus), tauDes = IXX(S.a) * (wcz - S.w.z) / PP.tc;
+      const Tp = clamp(tauDes / (4 * rollArm(S.a)), -cap, cap);
+      // within 60° of level thrust points mostly up again: blend lift back in to start arresting the fall
+      const Fc = PP.lift * MASS * G / 4 / Math.max(_up.y, 0.5) * clamp((_up.y - 0.5) / 0.35, 0, 1);
+      ARMS.forEach((arm, i) => { TDES[i] = arm.side * Tp + Fc; });
+    } else ARMS.forEach((arm, i) => {
       const yawSign = (i === 0 || i === 3) ? 1 : -1;
-      TDES[i] = cmd.idle ? 0 : Math.max(0, Fb + coast * MASS * G * (arm.end * -ex * 0.012 + arm.side * ez * 0.012 / rauth + yawSign * ey * 0.03));
+      TDES[i] = cmd.idle || cmd.stop ? 0 : Math.max(0, Fb + coast * MASS * G * (arm.end * -ex * 0.012 + arm.side * ez * 0.012 / rauth + yawSign * ey * 0.03));
     });
   } else {
     S.Tcmd = 0; S.w.multiplyScalar(0.9995);
@@ -1346,7 +1390,7 @@ function step() {
   if (wl > 1e-9) { _dq.setFromAxisAngle(_ax.copy(S.w).divideScalar(wl), wl * DT); S.q.multiply(_dq).normalize(); }
   // thrust comes from the electrical model: pack -> ESC duty -> motor current -> rotor speed -> thrust
   S.T = elecStep(DT, TDES, Math.abs(S.aVel)) / MASS;
-  for (let i = 0; i < 4; i++) S.motors[i] = clamp(E.m[i].w / 1750, 0, 1);
+  for (let i = 0; i < 4; i++) S.motors[i] = clamp(E.m[i].w / 1750, -1, 1);   // signed: negative = reversed
   if (mode === 'auto' && !S.crashed && (E.brownout || E.lvc === 2) && !['failsafe', 'done', 'land', 'pad'].includes(AP.phase)) {
     AP.hx = S.p.x; AP.hz = S.p.z; KN.state = 'done'; setPhase('failsafe'); onTrialEnd(E.brownout ? 'brownout' : 'low voltage');
   }
@@ -1625,7 +1669,7 @@ const STRIPS = [
   { label: 'height z [m]', min: 0, max: 2.2, ticks: [0, 1, 2], get: r => r.py, ref: () => LEVELS[level].gy, refLabel: 'gate centre' },
   { label: 'roll φ [°]', min: -110, max: 110, ticks: [-90, 0, 90], get: rollOf },
   { label: 'arm angle θ [°]', min: 0, max: 50, ticks: [9, 45], get: r => r.a / DEG, accent: true },
-  { label: 'mean rotor speed [%]', min: 0, max: 100, ticks: [0, 50, 100], get: r => (r.m0 + r.m1 + r.m2 + r.m3) * 25 },
+  { label: 'mean rotor speed [%]', min: 0, max: 100, ticks: [0, 50, 100], get: r => (Math.abs(r.m0) + Math.abs(r.m1) + Math.abs(r.m2) + Math.abs(r.m3)) * 25 },
 ];
 const STRIPS_P = [
   { label: 'pack voltage [V] · OCV dashed', min: 12, max: 17.2, ticks: [13, 15, 17], get: r => r.vb, ref2: r => r.oc },
@@ -1716,7 +1760,7 @@ function updateHUD(dtR, st) {
     el.spd.innerHTML = unit(replay.on ? '—' : S.v.length().toFixed(2), 'm/s');
     el.alt.innerHTML = unit(st.p.y.toFixed(2), 'm');
     el.roll.innerHTML = unit((-_eu.z / DEG).toFixed(1), '°');
-    el.thr.innerHTML = unit(Math.round((st.m[0] + st.m[1] + st.m[2] + st.m[3]) * 25), '%');
+    el.thr.innerHTML = unit(Math.round((Math.abs(st.m[0]) + Math.abs(st.m[1]) + Math.abs(st.m[2]) + Math.abs(st.m[3])) * 25), '%');
   }
   updatePower();
   el.ang.innerHTML = unit((a / DEG).toFixed(1), '°');
@@ -1889,12 +1933,12 @@ function tick(dtR) {
   updateDroneShape(vis.a);
   drone.props.forEach((p, i) => {
     const m = vis.m[i], dir = (i === 0 || i === 3) ? 1 : -1;
-    p.rotation.y += dir * Math.min(m * 1400 * visDt, 0.9);
-    drone.discs[i].material.opacity = clamp((m - 0.1) * 1.4, 0, 0.5) * (visDt > 0.004 ? 1 : 0.4);
+    p.rotation.y += dir * Math.sign(m) * Math.min(Math.abs(m) * 1400 * visDt, 0.9);
+    drone.discs[i].material.opacity = clamp((Math.abs(m) - 0.1) * 1.4, 0, 0.5) * (visDt > 0.004 ? 1 : 0.4);
   });
   drone.fan.rotation.y += visDt * 60;
   ledPhase += dtR;
-  const armed = vis.m[0] + vis.m[1] + vis.m[2] + vis.m[3] > 0.05;
+  const armed = Math.abs(vis.m[0]) + Math.abs(vis.m[1]) + Math.abs(vis.m[2]) + Math.abs(vis.m[3]) > 0.05;
   drone.ledFC.material = armed ? M.ledG : ((Math.floor(ledPhase * 2) % 2) ? M.ledG : M.ledOff);
   drone.leds.forEach(l => l.visible = armed);
   if (overlayOn) traj.update(replay.on ? replay.t : Infinity);
@@ -2483,6 +2527,25 @@ window.__SS = {
   },
   S, AP, KN, LEVELS, replay, tick, cam: (m, a) => { camMode = m; if (a != null) replayCam.angle = a; }, setLevel: i => setLevel(i, 'pick'), setT(r, p, b, xc) { T_ROLL = r; if (p) T_POP = p; if (b != null) APEX_BIAS = b; if (xc != null) KNIFE_XCOMP = xc; },
   E,
+  knTune(o = {}) { Object.assign(PP, o.pp || {}); if (o.lead != null) KN_LEAD = o.lead; return { PP, KN_LEAD }; },
+  // knife-edge timeline through gate C: state, roll, height, rotor speeds (rpm, signed) every `every` s near the wall
+  knifeTrace(soc = 1, every = 0.01) {
+    HEADLESS = true; freshPack(soc);
+    const sm = mode, sl = level; mode = 'auto'; level = 2; buildWall(LEVELS[2]); resetRun();
+    const out = []; let t = 0, next = 0, minY = Infinity;
+    while (t < 14 && !S.crashed && AP.phase !== 'land') {
+      step(); t += DT; const s = S.p.z - WALL_Z;
+      if (s < 0) minY = Math.min(minY, S.p.y);
+      if (s < 2.2 && s > -3 && t >= next) {
+        next = t + every;
+        const roll = Math.round(Math.atan2(-_up.x, _up.y) / DEG);
+        out.push([+t.toFixed(3), KN.state, +s.toFixed(2), +S.p.y.toFixed(3), roll, +S.w.z.toFixed(1), ...E.m.map(m => Math.round(m.w * 60 / (2 * Math.PI)))]);
+      }
+    }
+    const res = { crashed: S.crashed, passed: S.passed, minClearMM: Math.round(S.minClear * 1000), minY: +minY.toFixed(3), minInfo: S.minInfo, trace: out };
+    mode = sm; level = sl; buildWall(LEVELS[level]); resetRun(); HEADLESS = false;
+    return res;
+  },
   run(lv, secs = 12, soc = null, vcomp = true) {
     HEADLESS = true;
     const save = { soc: E.soc, soc0: E.soc0, pack: E.packNo, mAh: E.mAh, Wh: E.Wh, vc: E.vcomp };
