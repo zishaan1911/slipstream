@@ -2,7 +2,7 @@
 
 **SX-01 morphing quadrotor · narrow-gap traversal · Seventh Axis Aerial Robotics**
 
-SlipStream is a browser-based simulation of SX-01, a 1.46 kg research quadrotor whose arms fold on servos
+SlipStream is a browser-based simulation of SX-01, a 1.40 kg research quadrotor whose arms fold on servos
 so it can squeeze through gaps narrower than its own span, and roll knife-edge through slots narrower
 than its folded width.
 
@@ -41,15 +41,20 @@ Then open <http://localhost:8000/slipstream.html>.
 
 ## Airframe
 
-- Moulded white canopy over the top plate and a belly pan under the bottom plate; the gap between the plates
-  stays open for the arm hinges and the fold linkage.
-- Each arm carries a moulded shell ending in a motor pod (nav LED in its base) and folds 45° to 9° through a
-  servo horn + pushrod linkage (`electronics/linkage/design_linkage.py`).
-- Four tall landing legs retract with the fold, with no extra actuator: a rod from a bracket under the body
-  pitches each leg flat under its arm as the arm swings in (`electronics/linkage/design_legs.py`).
+- Ceramic-white machined unibody sized from the electronics it carries: `__SS.fit()` checks every internal part
+  against the shell's inner wall (2.5 mm wall, 1.3 mm minimum clearance). Smooth, continuous curves: the required
+  envelope is dilated and Gaussian-blurred, never cut below what it covers.
+- Tight packaging: carbon plates are a narrow spine with a lobe round each fold hinge (`electronics/linkage/plate.py`),
+  fold servos sit inside the hinge lobes, a compact 50 mm stereo depth module looks out through three flush windows,
+  receiver antennas lie inside the RF-transparent tail, and mocap markers are flush dots.
+- Each arm leaves its shoulder at nearly full body depth and tapers to a machined motor pod (nav LED in its base);
+  the hinge sits inside the shoulder. Folds 45° to 9° through a servo horn + pushrod linkage
+  (`electronics/linkage/design_linkage.py`).
+- Four tall landing legs retract with the fold, with no extra actuator (`electronics/linkage/design_legs.py`).
 - 2-axis gimbal camera under the belly, on 12 V from the compute buck and serial control from the FC.
 - Every conductor comes from one parts list and netlist (`electronics/harness/`), which also draws the wiring diagram.
-- Propulsion constants and all-up mass live in `electronics/motor.json` (2807 1300 KV, 7" tri-blade, 1.46 kg).
+- Propulsion constants and all-up mass live in `electronics/motor.json` (2807 1300 KV, 7" tri-blade, 1.40 kg).
+- Earlier exterior studies are in `concepts/` (render with `python concepts/render_unibody.py`).
 
 ## Flight and power model
 
