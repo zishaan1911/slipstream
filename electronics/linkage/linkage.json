@@ -1,0 +1,35 @@
+{
+  "hinge": [
+    0.068,
+    -0.07
+  ],
+  "lever_r": 0.01,
+  "lever_psi_deg": 112.5,
+  "servo_shaft": [
+    0.058,
+    -0.06
+  ],
+  "servo_yaw_deg": 60.0,
+  "horn_r": 0.005999999999999999,
+  "rod_len": 0.01555,
+  "sweep_deg": 60.4,
+  "min_transmission_deg": 61.8,
+  "horn_deg_open": 91.7,
+  "horn_deg_fold": 31.29,
+  "heights": {
+    "plate_top": 0.016,
+    "horn": 0.0065,
+    "rod": 0.0055,
+    "stud_base": 0.0015
+  },
+  "torque": {
+    "arm_mass_kg": 0.14500000000000002,
+    "inertia_kgm2": 0.004483,
+    "fold_time_s": 0.45,
+    "hinge_torque_Nm": 0.0556,
+    "servo_torque_Nm": 0.0427,
+    "servo_torque_kgcm": 0.435,
+    "servo_rated_kgcm": 2.5,
+    "margin": 5.7
+  }
+}
