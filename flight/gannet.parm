@@ -1,0 +1,50 @@
+# Gannet SX-01 - ArduCopter parameters for the knife-edge script (flight/README.md)
+# Load in Mission Planner / MAVProxy (param load gannet.parm), reboot, then copy the scripts to APM/scripts/.
+# NOT FLIGHT TESTED. Values marked CHECK depend on your flight controller and ESC firmware version.
+
+# --- frame: 4 reversible motors on the 6DoF scripting mixer (gannet_frame.lua) --------------------------------
+FRAME_CLASS     16      # 6DoF Scripting: the Copter mixer that supports reversible motors
+SCR_ENABLE      1
+SCR_HEAP_SIZE   150000  # two scripts plus the parameter table; raise if the GCS reports "out of memory"
+SCR_VM_I_COUNT  50000   # instructions per script run
+
+# --- motors: DShot600, ESCs in 3D (bidirectional) mode: PWM 1500 stopped, 1000 full reverse, 2000 full forward ------
+MOT_PWM_TYPE    6       # DShot600
+SERVO_BLH_AUTO  1
+SERVO_BLH_MASK  15      # outputs 1-4
+SERVO_BLH_3DMASK 15     # outputs 1-4 reversible: ArduPilot puts the ESCs in 3D mode at boot
+SERVO_BLH_BDMASK 15     # bidirectional DShot: rpm telemetry for logging the brake and reversal (CHECK board support)
+SERVO_DSHOT_ESC 1       # BLHeli32 / AM32 command set (CHECK for your ESC firmware)
+SERVO1_FUNCTION 33      # Motor1 front-right
+SERVO2_FUNCTION 34      # Motor2 rear-left
+SERVO3_FUNCTION 35      # Motor3 front-left
+SERVO4_FUNCTION 36      # Motor4 rear-right
+# AM32 configurator, every ESC: bidirectional (3D) ON, brake on stop ON, ramp/startup as on the thrust stand
+
+# --- fold servos: one output per servo, all driven by the script (Scripting1) ------------------------------------
+SERVO5_FUNCTION 94
+SERVO6_FUNCTION 94
+SERVO7_FUNCTION 94
+SERVO8_FUNCTION 94
+SERVO5_MIN 1000
+SERVO5_MAX 2000
+
+# --- trigger: a 3-position switch on RC channel 8 (high = go) ----------------------------------------------------
+RC8_OPTION      300     # Scripting1
+
+# --- position: motion capture over MAVLink (VISION_POSITION_ESTIMATE from the CM4) --------------------------------
+GPS1_TYPE       0
+VISO_TYPE       1       # MAVLink
+EK3_SRC1_POSXY  6       # ExternalNav
+EK3_SRC1_VELXY  6
+EK3_SRC1_POSZ   6
+EK3_SRC1_VELZ   6
+EK3_SRC1_YAW    6
+# EKF origin: on the floor at the take-off pad, North along the run to the gate (KNF_GATE_N is the slot distance)
+
+# --- knife-edge script (knife_edge.lua). Gate C: slot centre 7.0 m north, 1.95 m up -------------------------------
+KNF_ENABLE      0       # set to 1 on the day, after the rig tests
+KNF_GATE_N      7.0
+KNF_GATE_E      0.0
+KNF_GATE_D      -1.95
+KNF_SPEED       5.0
