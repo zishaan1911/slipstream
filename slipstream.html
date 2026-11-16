@@ -1473,6 +1473,8 @@ function resetRun() {
   S.p.set(0, -GROUND_BOT + 0.001, 0); S.v.set(0, 0, 0); S.q.identity(); S.w.set(0, 0, 0);
   S.a = GEO.aOpen; S.aVel = 0; S.aAcc = 0; S.foldTarget = 0; S.T = 0; S.Tcmd = 0; S.motors = [0, 0, 0, 0];
   S.crashed = false; S.passed = false; S.inGap = false; S.minClear = Infinity; S.knife = false; S.onGround = true;
+  S.iz = 0;   // altitude integrator, rotors and the 12 V rail start fresh too: no state carried from the last run
+  E.m.forEach(m => { m.w = 0; m.d = 0; m.i = 0; m.T = 0; }); E.brownout = false; E.r12.on = true; E.brake = false; E.dutyOv.fill(null);
   KN.state = 'idle'; setPhase('pad');
   MAN.yaw = 0; MAN.holdY = L.knife ? knifeLowY(L) + 0.25 : L.gy; MAN.fold = false;
   REC.length = 0; lastRec = -1; pendingReplay = null; replay.on = false; hud.classList.remove('replay');
@@ -2829,7 +2831,7 @@ window.__SS = {
   async luaRig(params = {}, secs = 2.0, every = 0.005) {
     await luaLoad();
     HEADLESS = true; freshPack(1);
-    const sm = mode, sl = level; mode = 'auto'; level = 0; buildWall(LEVELS[0]); S.hitInfo = null; resetRun();
+    const sm = mode, sl = level; mode = 'auto'; level = 0; buildWall(LEVELS[0]); S.hitInfo = null; resetRun(); S.t = 0;
     LUA.on = true; luaReset(Object.assign({ KNF_RIG: 1 }, params)); LUA.aux = 0;
     for (let k = 0; k < 240 * 12 && AP.phase !== 'approach'; k++) step();
     for (let k = 0; k < 120; k++) step();   // settle in the hover
@@ -2850,7 +2852,7 @@ window.__SS = {
   async luaRun(soc = 1, every = 0.01, params = {}) {
     await luaLoad();
     HEADLESS = true; freshPack(soc);
-    const sm = mode, sl = level; mode = 'auto'; level = 2; buildWall(LEVELS[2]); S.hitInfo = null; resetRun();
+    const sm = mode, sl = level; mode = 'auto'; level = 2; buildWall(LEVELS[2]); S.hitInfo = null; resetRun(); S.t = 0;   // same clock phase every run
     LUA.on = true; luaReset(params);
     const out = []; let t = 0, next = 0, minY = Infinity, err = null;
     try {
