@@ -16,7 +16,7 @@
 ]]
 
 local PARAM_KEY, PFX = 72, 'KNF_'
-assert(param:add_table(PARAM_KEY, PFX, 48), 'KNF: could not add param table')
+assert(param:add_table(PARAM_KEY, PFX, 60), 'KNF: could not add param table')
 local idx = 0
 local function P(name, default)
   idx = idx + 1
@@ -66,12 +66,18 @@ local MAX_T    = P('MAX_T', 2.5)       -- abort if overriding the motors longer 
 local ST_KP    = P('ST_KP', 0.0)       -- STOP: roll hold, rate per rad of error [1/s] (0 = pure brake, props to 0 rpm)
 local ST_KD    = P('ST_KD', 0.05)      -- STOP: hold, rate time constant [s]
 local ST_CAP   = P('ST_CAP', 1.0)      -- STOP: hold, max thrust per motor [N], balanced: zero net force
+local RMODE    = P('RMODE', 0)         -- roll control: 0 rate feedback, 1 rotor-aware bang-bang (needs ESC rpm telemetry)
+local RACC     = P('RACC', 10000)       -- rotor speed slew either way [rad/s^2] (thrust stand: spin-up/brake slope)
+local RBRK     = P('RBRK', 6500)       -- rotor slow-down while braking (ESC regenerative limit) [rad/s^2]
+local WROT     = P('WROT', 1860)       -- rotor speed at full throttle, 16 V [rad/s]
+local RMARG    = P('RMARG', 0.0)       -- aim this far past the target [deg]
 local RIG      = P('RIG', 0)           -- 1: roll rig (rigs/roll_rig): switch starts ROLL at once, no approach, any mode
 local RIG_STOP = P('RIG_STOP', 0.25)   -- roll rig: how long the rotors stay stopped before the push-pull [s]
 
 local G, GUIDED, K_FOLD, MODE = 9.81, 4, 94, 'IDLE'
 local ST = { IDLE = 0, APPROACH = 1, POP = 2, ROLL = 3, STOP = 4, PUSHPULL = 5, LEVEL = 6, DONE = 7, ABORT = 8 }
 -- motor output channels; sides for roll: left motors (M2 rear-left, M3 front-left) raise the left side
+local west, lastW, tlast, RS, RDIR = { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, nil, 'accel', nil   -- rotor-speed estimates, commanded speeds, bang-bang phase
 local CH, SIDE = {}, { -1, 1, 1, -1 }   -- +1 = left side: more thrust there rolls right (positive roll)
 for i = 1, 4 do CH[i] = SRV_Channels:find_channel(32 + i) end
 local switch = rc:find_channel_for_option(300)
@@ -79,8 +85,8 @@ local t0, tOver = 0, 0
 
 local function now() return millis():tofloat() * 0.001 end
 local function clamp(x, a, b) if x < a then return a elseif x > b then return b end return x end
-local function set_state(s) MODE = s; t0 = now(); gcs:send_text(6, 'KNF ' .. s); param:set('KNF_STATE', ST[s]) end
-param:add_param(PARAM_KEY, 48, 'STATE', 0)
+local function set_state(s) MODE = s; t0 = now(); RS = 'accel'; RDIR = nil; tlast = nil; gcs:send_text(6, 'KNF ' .. s); param:set('KNF_STATE', ST[s]) end
+param:add_param(PARAM_KEY, 60, 'STATE', 0)
 
 -- thrust [N] -> 3D-mode PWM (1500 stopped, >1500 forward, <1500 reverse); thrust ~ duty^2, max scaled by pack voltage
 local function pwm_for(T)
@@ -90,13 +96,80 @@ local function pwm_for(T)
   return math.floor(1500 - 500 * math.sqrt(clamp(-T / (KREV:get() * tmax), 0, 1)) + 0.5)
 end
 local function drive(T)   -- T[i] per motor, renewed every loop with a short timeout
-  for i = 1, 4 do if CH[i] then SRV_Channels:set_output_pwm_chan_timeout(CH[i], pwm_for(T[i]), 30) end end
+  for i = 1, 4 do
+    lastW[i] = (T[i] >= 0) and WROT:get() * math.sqrt(math.min(T[i] / TMAX:get(), 1))
+               or -WROT:get() * math.sqrt(math.min(-T[i] / (KREV:get() * TMAX:get()), 1))   -- speed this command settles at
+    if CH[i] then SRV_Channels:set_output_pwm_chan_timeout(CH[i], pwm_for(T[i]), 30) end
+  end
 end
 local function split(collective, torque)   -- per-motor thrust for a collective [N per motor] and roll torque [N m]
   local d = torque / (4 * ARM:get())
   local T = {}
   for i = 1, 4 do T[i] = collective + SIDE[i] * d end
   return T
+end
+
+-- rotor-aware roll control: measured rotor speeds (ESC telemetry), predicted forward with a constant speed slew
+local function slew(w, tgt, h, rate) local a = (rate or RACC:get()) * h; if w < tgt then return math.min(tgt, w + a) end; return math.max(tgt, w - a) end
+local function rotor_speeds()   -- signed [rad/s], mean of the left pair (M2, M3) and of the right pair (M1, M4)
+  -- telemetry gives the magnitude only: the sign comes from each rotor's speed estimated from the commands sent
+  local tn = now(); local h = tlast and (tn - tlast) or 0; local first = tlast == nil; tlast = tn
+  for i = 1, 4 do
+    local r = (esc_telem:get_rpm(i - 1) or 0) * 2 * math.pi / 60
+    if first then west[i] = r else
+      west[i] = slew(west[i], lastW[i], h)
+      if math.abs(west[i]) > 150 then west[i] = (west[i] >= 0 and 1 or -1) * r end
+    end
+  end
+  return (west[2] + west[3]) / 2, (west[1] + west[4]) / 2
+end
+local function thrust_at(w) local x = w / WROT:get(); if w >= 0 then return TMAX:get() * x * x end; return -KREV:get() * TMAX:get() * x * x end
+local H = 0.004
+local function roll_acc(wl, wr) return 2 * ARM:get() * (thrust_at(wl) - thrust_at(wr)) / IXX:get() end
+local function sim_brake(th, p, wl, wr)   -- all four braked to 0 now: roll angle and rate when the rotors have stopped
+  for _ = 1, 80 do
+    wl, wr = slew(wl, 0, H, RBRK:get()), slew(wr, 0, H, RBRK:get())
+    p = p + roll_acc(wl, wr) * H; th = th + p * H
+    if math.abs(wl) < 20 and math.abs(wr) < 20 then break end
+  end
+  return th, p
+end
+local function sim_stop(th, p, wl, wr, dir)   -- full opposite torque, then brake as soon as that leaves the roll stopped
+  local wf = WROT:get()
+  for _ = 1, 80 do
+    local bth, bp = sim_brake(th, p, wl, wr)
+    if bp * dir <= 0 then return bth end
+    wl, wr = slew(wl, -dir * wf, H), slew(wr, dir * wf, H)
+    p = p + roll_acc(wl, wr) * H; th = th + p * H
+  end
+  return th
+end
+-- one step of a time-optimal roll to `target` [rad]: returns per-motor thrust and true once the rotors should brake
+local function bang(roll, p, target, tf, trv)
+  local wl, wr = rotor_speeds()
+  RDIR = RDIR or ((target > roll) and 1 or -1)   -- fixed for the whole roll
+  local dir = RDIR
+  if RS == 'accel' and p * dir > 0.3 then
+    local th_end = sim_stop(roll, p, wl, wr, dir)
+    if (th_end - target - dir * math.rad(RMARG:get())) * dir >= 0 then
+      RS = 'stop'
+      gcs:send_text(7, string.format('KNF counter: roll %.0f p %.1f wl %.0f wr %.0f -> %.0f', math.deg(roll), p, wl, wr, math.deg(th_end)))
+    end
+  end
+  if RS == 'stop' then
+    local bth, bp = sim_brake(roll, p, wl, wr)
+    if bp * dir <= 0 then
+      gcs:send_text(7, string.format('KNF brake: roll %.0f p %.1f wl %.0f wr %.0f -> %.0f p %.1f', math.deg(roll), p, wl, wr, math.deg(bth), bp))
+      return nil, true
+    end
+  end
+  local push = (RS == 'accel') and dir or -dir
+  local T = {}
+  for i = 1, 4 do
+    local up = SIDE[i] * push > 0   -- this motor pushes its side up
+    T[i] = up and tf or -trv
+  end
+  return T, false
 end
 
 local function fold(on) SRV_Channels:set_output_pwm(K_FOLD, on and FOLD_PWM:get() or OPEN_PWM:get()) end
@@ -154,7 +227,12 @@ local function update()
       local tR, T = now() - tOver - RI_PRE:get(), nil
       local v = battery:voltage(0) or 16.0
       local tf, trv = TMAX:get() * (v / 16.0) ^ 2, KREV:get() * TMAX:get() * (v / 16.0) ^ 2
-      if tR < 0 then                  -- symmetric pre-brake: no roll torque from unequal spin-down
+      if RMODE:get() >= 1 and tR < 0 then   -- symmetric pre-brake first: roll from low rotor speeds
+        T = { 0, 0, 0, 0 }
+      elseif RMODE:get() >= 1 then    -- rotor-aware time-optimal roll: brakes when the prediction says it stops at 90
+        local brk; T, brk = bang(roll, p, target, tf, trv)
+        if brk then set_state('STOP'); drive({ 0, 0, 0, 0 }); return update, 2 end
+      elseif tR < 0 then              -- symmetric pre-brake: no roll torque from unequal spin-down
         T = { 0, 0, 0, 0 }
       elseif tR < RI_T1:get() then    -- push: left side forward, right side reverse
         local f = RI_F1:get(); T = {}; for i = 1, 4 do T[i] = SIDE[i] > 0 and f * tf or -f * trv end
@@ -164,7 +242,7 @@ local function update()
         local wc = clamp(RI_K:get() * (err - p * LEAD:get()), -RI_WMAX:get(), RI_WMAX:get())
         T = split(0.02 * MASS:get() * G / 4, IXX:get() * (wc - p) / RI_TC:get())
       end
-      for i = 1, 4 do T[i] = math.max(T[i], IDLE:get()) end   -- forward only on the way in
+      if RMODE:get() < 1 then for i = 1, 4 do T[i] = math.max(T[i], IDLE:get()) end end   -- IDLE: forward-only floor (rate mode)
       drive(T)
       if math.abs(roll + p * BRK_LEAD:get() - target) < math.rad(BRK_TOL:get()) and math.abs(p) < BRK_RATE:get() then set_state('STOP') end
       if s < -TAIL:get() then set_state('PUSHPULL') end
@@ -178,6 +256,12 @@ local function update()
       end
       if s < -TAIL:get() then set_state('PUSHPULL') end
     else
+      if RMODE:get() >= 1 then        -- rotor-aware roll back to level, then hand to Guided
+        local v = battery:voltage(0) or 16.0
+        local T, brk = bang(roll, p, 0, TMAX:get() * (v / 16.0) ^ 2, KREV:get() * TMAX:get() * (v / 16.0) ^ 2)
+        if brk then set_state('LEVEL') else drive(T) end
+        return update, 2
+      end
       local wc = clamp(PP_K:get() * (err - p * PP_LAG:get()), -PP_WMAX:get(), PP_WMAX:get())
       local v = battery:voltage(0) or 16.0
       local cap = 0.9 * KREV:get() * TMAX:get() * (v / 16.0) ^ 2

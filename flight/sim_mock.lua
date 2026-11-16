@@ -47,6 +47,9 @@ function SRV_Channels:find_channel(fn) local c = AP:findchan(fn); if c < 0 then 
 function SRV_Channels:set_output_pwm_chan_timeout(ch, pwm, ms) AP:override(ch, pwm, ms) end
 function SRV_Channels:set_output_pwm(fn, pwm) AP:fnpwm(fn, pwm) end
 
+esc_telem = {}
+function esc_telem:get_rpm(instance) return AP:rpm(instance) end   -- magnitude, like bidirectional DShot telemetry
+
 gcs = {}
 function gcs:send_text(severity, text) AP:text(severity, text) end
 logger = {}
