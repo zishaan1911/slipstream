@@ -1,0 +1,260 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SX-01 chassis concepts</title>
+<style>html,body{margin:0;background:#0b0c0e;overflow:hidden}canvas{display:block}</style>
+<canvas id="c"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// Chassis concept renders for SX-01: same folding layout (hinges at the body corners, 7" props, 0.26 m arms),
+// three exterior design languages built from sculpted cross-sections. window.render(concept, view) -> JPEG data URL.
+const V3 = THREE.Vector3, DEG = Math.PI / 180;
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x)), lerp = (a, b, t) => a + (b - a) * t;
+const sm = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const canvas = document.getElementById('c');
+const RND = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+RND.outputEncoding = THREE.sRGBEncoding; RND.toneMapping = THREE.ACESFilmicToneMapping; RND.toneMappingExposure = 1.05;
+RND.shadowMap.enabled = true; RND.shadowMap.type = THREE.VSMShadowMap;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x060607); scene.fog = new THREE.Fog(0x060607, 1.6, 4.5);
+const cam = new THREE.PerspectiveCamera(28, 4 / 3, 0.01, 50);
+(() => {  // studio: black room, overhead softbox, two strip lights for long edge highlights
+  const es = new THREE.Scene();
+  es.add(new THREE.Mesh(new THREE.SphereGeometry(20, 32, 16), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.012, 0.013, 0.015), side: THREE.BackSide })));
+  const panel = (w, h, c, x, y, z, rx, ry) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); m.position.set(x, y, z); m.rotation.set(rx, ry, 0); es.add(m); };
+  panel(4, 2.4, new THREE.Color(5, 5, 5.2), 0, 4, 0, Math.PI / 2, 0);
+  panel(0.6, 6, new THREE.Color(3.2, 3.3, 3.6), -4.2, 1, 1, 0, Math.PI / 2);
+  panel(0.6, 6, new THREE.Color(3.4, 2.2, 1.3), 4.2, 0.8, -2.5, 0, -Math.PI / 2 + 0.5);
+  const pm = new THREE.PMREMGenerator(RND); scene.environment = pm.fromScene(es, 0.03).texture;
+})();
+const key = new THREE.SpotLight(0xffffff, 1.25, 0, 0.42, 0.85); key.position.set(0.6, 2.4, 0.8); key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.radius = 10; key.shadow.bias = -0.0004; scene.add(key, key.target);
+const rim = new THREE.DirectionalLight(0xdfe7ff, 1.3); rim.position.set(-2, 1.2, -2.5); scene.add(rim);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x101012, 0.12));
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: 0x020203, roughness: 0.38 }));
+floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+
+const MAT = {
+  white: () => new THREE.MeshPhysicalMaterial({ color: 0xf2f2f0, roughness: 0.3, clearcoat: 0.9, clearcoatRoughness: 0.08 }),
+  satin: () => new THREE.MeshPhysicalMaterial({ color: 0xf0f0ee, roughness: 0.45, clearcoat: 0.3, clearcoatRoughness: 0.3 }),
+  dark: () => new THREE.MeshPhysicalMaterial({ color: 0x1c1d21, roughness: 0.35, metalness: 0.2, clearcoat: 0.6 }),
+  glass: () => new THREE.MeshPhysicalMaterial({ color: 0x07080a, roughness: 0.05, metalness: 0.5, clearcoat: 1 }),
+  orange: () => new THREE.MeshPhysicalMaterial({ color: 0xf26a1b, roughness: 0.3, clearcoat: 0.7, emissive: 0x2a0d00 }),
+  metal: () => new THREE.MeshStandardMaterial({ color: 0x8d9299, roughness: 0.3, metalness: 1 }),
+  rubber: () => new THREE.MeshStandardMaterial({ color: 0x111214, roughness: 0.85 }),
+  prop: () => new THREE.MeshPhysicalMaterial({ color: 0x15161a, roughness: 0.25, clearcoat: 0.6, side: THREE.DoubleSide }),
+};
+const mesh = (g, m, p) => { const o = new THREE.Mesh(g, m); o.castShadow = true; o.receiveShadow = true; p.add(o); return o; };
+const lathe = (pts, seg = 96) => new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), seg);
+
+function propeller(p, mat) {
+  const g = new THREE.Group(); p.add(g);
+  for (let k = 0; k < 3; k++) {
+    const pos = [], idx = [], NU = 30, NV = 16;
+    for (let i = 0; i <= NU; i++) {
+      const u = i / NU, r = 0.008 + 0.083 * u; let c = 0.008 + 0.013 * Math.sin(Math.PI * Math.min(1, Math.pow(u, 0.7) * 0.95)); if (u > 0.85) c *= Math.sqrt(Math.max(0, 1 - Math.pow((u - 0.85) / 0.15, 2))); c = Math.max(c, 2e-5);
+      const tw = 0.42 - 0.24 * u;
+      for (let j = 0; j < NV; j++) { const ph = j / NV * Math.PI * 2, xc = (1 - Math.cos(ph)) / 2, yt = 5 * 0.12 * c * (0.2969 * Math.sqrt(xc) - 0.126 * xc - 0.3516 * xc * xc + 0.2843 * xc ** 3 - 0.1036 * xc ** 4);
+        const y = 0.04 * c * Math.sin(Math.PI * xc) + (Math.sin(ph) >= 0 ? yt : -yt), z = (xc - 0.4) * c; pos.push(r, y * Math.cos(tw) - z * Math.sin(tw), y * Math.sin(tw) + z * Math.cos(tw)); }
+    }
+    for (let i = 0; i < NU; i++) for (let j = 0; j < NV; j++) { const a = i * NV + j, b = i * NV + (j + 1) % NV; idx.push(a, b, a + NV, b, b + NV, a + NV); }
+    const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); bg.setIndex(idx); bg.computeVertexNormals();
+    mesh(bg, mat, g).rotation.y = k * Math.PI * 2 / 3 + 0.4;
+  }
+  return g;
+}
+
+// common layout: hinges at the body corners, arms at 45 deg, motor axis 0.26 m out
+const HX = 0.064, HZ = 0.07, AL = 0.26, A = 45 * DEG;
+function armFrame(side, end) {      // local (x across, y up, z = -distance along the arm) -> body
+  const d = [side * Math.sin(A), 0, end * Math.cos(A)], e = [d[2], 0, -d[0]];
+  return p => [side * HX + d[0] * -p[2] + e[0] * p[0], p[1], end * HZ + d[2] * -p[2] + e[2] * p[0]];
+}
+// sculpted section: a half-profile polygon (x >= 0, top to bottom), mirrored, corners softened by Chaikin passes
+function profile(half, passes) {
+  let P = half.concat(half.slice(1, -1).reverse().map(([x, y]) => [-x, y]));
+  for (let k = 0; k < passes; k++) {
+    const Q = []; for (let i = 0; i < P.length; i++) { const a = P[i], b = P[(i + 1) % P.length]; Q.push([0.75 * a[0] + 0.25 * b[0], 0.75 * a[1] + 0.25 * b[1]], [0.25 * a[0] + 0.75 * b[0], 0.25 * a[1] + 0.75 * b[1]]); }
+    P = Q;
+  }
+  return P;
+}
+// loft of a fixed profile: S(t) -> {x, y, z, w, hT, hB, frame?}; optional flat lid on the last ring
+function sculpt(S, prof, nu, opts = {}) {
+  const pos = [], col = [], idx = [], nv = prof.length;
+  const put = (p, s) => { if (s.frame) p = s.frame(p); pos.push(p[0], p[1], p[2]); };
+  for (let i = 0; i <= nu; i++) {
+    const t = opts.cos ? (1 - Math.cos(Math.PI * i / nu)) / 2 : i / nu, s = S(t);
+    for (let j = 0; j < nv; j++) {
+      const [px, py] = prof[j];
+      put([s.x + s.w * px, s.y + (py >= 0 ? s.hT : s.hB) * py, s.z], s);
+      if (opts.color) col.push(...opts.color(t, px, py));
+    }
+  }
+  for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) { const a = i * nv + j, b = i * nv + (j + 1) % nv, c = a + nv, d = b + nv; idx.push(a, c, b, b, c, d); }
+  if (opts.capEnd) {
+    const s = S(1), base = pos.length / 3; put([s.x, s.y, s.z], s); if (opts.color) col.push(...opts.capColor);
+    for (let j = 0; j < nv; j++) { const a = nu * nv + j, b = nu * nv + (j + 1) % nv; idx.push(base, a, b); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  if (opts.color) g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx); g.computeVertexNormals(); return g;
+}
+const BODY_P = [[0, 1], [0.48, 1], [0.8, 0.62], [1, 0.06], [0.9, -0.5], [0.56, -1], [0, -1]];
+const ARM_P = [[0, 1], [0.4, 1], [1, 0.08], [0.94, -0.2], [0.42, -1], [0, -1]];
+const WHITE = [0.86, 0.86, 0.87], BLACK = [0.012, 0.012, 0.014];
+
+function concept(name) {
+  const D = new THREE.Group(); scene.add(D);
+  const facet = name === 'facet', R = facet ? 0 : 3, two = name === 'spine';
+  const vc = () => Object.assign(facet ? MAT.satin() : MAT.white(), { vertexColors: true, side: THREE.DoubleSide, flatShading: facet });
+  const white = Object.assign(facet ? MAT.satin() : MAT.white(), { side: THREE.DoubleSide, flatShading: facet });
+  const dark = Object.assign(MAT.dark(), { flatShading: facet }), orange = MAT.orange();
+  const bp = profile(BODY_P, R), ap = profile(ARM_P, R);
+  // body: knife nose rising into a flat deck, widest across the front hinge line, tapering to a cut-off tail
+  const z0 = -0.185, z1 = 0.15;
+  const bodyS = t => { const z = lerp(z0, z1, t);
+    const w = 0.066 * Math.pow(sm(z0, -0.055, z), 0.62) * (1 - 0.42 * sm(-0.02, z1, z)) + 0.0006;
+    const hT = 0.031 * (0.16 + 0.84 * Math.pow(sm(z0, -0.02, z), 0.85)) * (1 - 0.32 * sm(0.04, z1, z)) + 0.0004;
+    const hB = 0.019 * (0.25 + 0.75 * sm(z0, -0.07, z)) * (1 - 0.25 * sm(0.06, z1, z)) + 0.0004;
+    return { x: 0, y: 0.002 + 0.006 * sm(z0, 0.0, z), z, w, hT, hB }; };
+  const bodyCol = (t, px, py) => { const z = lerp(z0, z1, t);
+    if (two) return py > 0.55 ? BLACK : WHITE;                          // smoked upper canopy
+    return (z < -0.11 && py > 0.15) ? BLACK : WHITE; };                  // gloss visor over the nose sensor
+  mesh(sculpt(bodyS, bp, facet ? 16 : 180, { cos: !facet, color: bodyCol, capEnd: true, capColor: BLACK }), vc(), D);
+  if (!facet) {   // orange accent on the waist crease, or along the spine
+    const pts = []; for (let k = 0; k <= 80; k++) { const t = 0.08 + 0.9 * k / 80, s = bodyS(t); pts.push(two ? new V3(0, s.y + s.hT + 0.0009, s.z) : new V3(s.w * 1.003, s.y + s.hT * 0.06, s.z)); }
+    (two ? [1] : [-1, 1]).forEach(sx => mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(p => new V3(sx * p.x, p.y, p.z))), 160, two ? 0.0022 : 0.0011, 10), orange, D));
+  }
+  // arms: thin bladed sections with a little dihedral, ending in slim nacelles
+  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, ez]) => {
+    const F = armFrame(sx, ez);
+    mesh(sculpt(t => { const s = lerp(0.005, AL - 0.006, t);
+      return { x: 0, y: 0.001 + 0.007 * t * t, z: -s, w: lerp(0.021, 0.0105, Math.pow(t, 0.8)), hT: lerp(0.0085, 0.0052, t), hB: lerp(0.0085, 0.0052, t), frame: F }; }, ap, facet ? 6 : 90), white, D);
+    const pod = new THREE.Group(); const [px, , pz] = F([0, 0, -AL]); pod.position.set(px, 0.0075, pz); D.add(pod);
+    const seg = facet ? 8 : 96;
+    mesh(lathe([[0, -0.036], [0.004, -0.034], [0.0105, -0.026], [0.0148, -0.014], [0.0162, -0.002], [0.0158, 0.004], [0.0138, 0.0075], [0.011, 0.008]], seg), white, pod);
+    mesh(lathe([[0, -0.0372], [0.0042, -0.0346], [0.0052, -0.033], [0, -0.033]], seg), dark, pod);
+    mesh(lathe([[0.01625, -0.0035], [0.0164, -0.0025], [0.0164, -0.0012], [0.01625, -0.0002]], seg), orange, pod);
+    buildMotor(pod, 0.008, dark);
+    leg(D, F([0, -0.004, -0.09]), F([0, -0.1505, -0.14]), dark, facet);
+  });
+  const gm = new THREE.Group(); gm.position.set(0, -0.026, -0.098); D.add(gm);   // gimbal camera under the nose
+  mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.008, 40), dark, gm).position.y = -0.002;
+  mesh(new THREE.BoxGeometry(0.034, 0.022, 0.026), dark, gm).position.y = -0.017;
+  const ln = mesh(new THREE.CylinderGeometry(0.007, 0.0075, 0.006, 40), MAT.glass(), gm); ln.rotation.x = Math.PI / 2; ln.position.set(0, -0.017, -0.015);
+  D.position.y = 0.143;
+  return D;
+}
+function buildMotor(pod, y0, dark) {
+  mesh(new THREE.CylinderGeometry(0.0176, 0.0176, 0.016, 64), dark, pod).position.y = y0 + 0.008;
+  mesh(new THREE.CylinderGeometry(0.0176, 0.0176, 0.0016, 64), MAT.metal(), pod).position.y = y0 + 0.0168;
+  mesh(new THREE.CylinderGeometry(0.0055, 0.0065, 0.008, 6), MAT.metal(), pod).position.y = y0 + 0.022;
+  propeller(pod, MAT.prop()).position.y = y0 + 0.02;
+}
+function leg(D, a, b, mat, facet) {
+  const A3 = new V3(...a), B3 = new V3(...b), d = B3.clone().sub(A3), L = d.length();
+  const g = new THREE.CylinderGeometry(0.0034, 0.0021, L, facet ? 6 : 32); g.scale(0.7, 1, 1);
+  const m = mesh(g, mat, D); m.position.copy(A3).add(B3).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(new V3(0, -1, 0), d.normalize());
+  const f = mesh(new THREE.CylinderGeometry(0.0028, 0.0034, 0.008, 24), MAT.rubber(), D); f.position.copy(B3); f.quaternion.copy(m.quaternion);
+}
+
+// ---------------------------------------------------------------- machined unibody with concealed hinges
+// One machined shell: a slim core with crisp chamfered edges, and at each corner a pivot drum concentric with the
+// fold hinge. The drum belongs to the arm and turns inside the body's corner, so the only trace of the hinge is a
+// fine seam; the arm grows out of the drum at full body height and tapers to a machined motor pod.
+function chamferProfile(half, passes) {   // [x, y, chamfer-flag] half-profile -> mirrored ring with flags
+  let P = half.concat(half.slice(1, -1).reverse().map(([x, y, f]) => [-x, y, f]));
+  for (let k = 0; k < passes; k++) {
+    const Q = []; for (let i = 0; i < P.length; i++) { const a = P[i], b = P[(i + 1) % P.length];
+      Q.push([0.75 * a[0] + 0.25 * b[0], 0.75 * a[1] + 0.25 * b[1], 0.75 * a[2] + 0.25 * b[2]], [0.25 * a[0] + 0.75 * b[0], 0.25 * a[1] + 0.75 * b[1], 0.25 * a[2] + 0.75 * b[2]]); }
+    P = Q;
+  }
+  return P;
+}
+const UNI_P = chamferProfile([[0, 1, 0], [0.82, 1, 0], [0.84, 0.995, 1], [0.985, 0.72, 1], [1, 0.68, 0], [1, -0.5, 0], [0.985, -0.56, 1], [0.86, -0.97, 1], [0.84, -1, 0], [0, -1, 0]], 1);
+const FINISH = {
+  grey: { body: 0x4a4d53, metal: 0.85, rough: 0.34, edge: 1.0, face: 0.78, visor: 0.05 },
+  silver: { body: 0xc9cdd2, metal: 1.0, rough: 0.3, edge: 1.0, face: 0.86, visor: 0.03 },
+  white: { body: 0xf2f2f0, metal: 0.0, rough: 0.3, edge: 0.62, face: 1.0, visor: 0.012, coat: 0.9 },
+};
+function uniMat(f, vc) {
+  return new THREE.MeshPhysicalMaterial({ color: f.body, metalness: f.metal, roughness: f.rough, clearcoat: f.coat || 0.25, clearcoatRoughness: f.coat ? 0.08 : 0.35, vertexColors: vc, side: THREE.DoubleSide });
+}
+function unibody(finish = 'grey', foldDeg = 45) {
+  const D = new THREE.Group(); scene.add(D);
+  const f = FINISH[finish], ang = foldDeg * DEG;
+  const skin = uniMat(f, true), dark = MAT.dark(), orange = MAT.orange();
+  const col = (flag, visor) => { const v = visor ? f.visor : lerp(f.face, f.edge, flag); return [v, v, v * 1.01]; };
+  // core: knife nose, slim deck, gentle taper to a squared tail
+  const z0 = -0.15, z1 = 0.152;   // blunt, squared nose: no point
+  const rK = 0.0168;   // shoulder radius around each fold hinge: the arm root turns inside this arc
+  const core = t => { const z = lerp(z0, z1, t);
+    const u = clamp((-0.128 - z) / 0.022, 0, 1);   // last 22 mm: corners round off into a flat front face
+    const wc = 0.05 * (0.74 + 0.26 * Math.pow(1 - u * u * u, 1 / 3)) * (1 - 0.34 * sm(0.03, z1, z)) + 0.0006;
+    const dz = Math.abs(z) - HZ, ws = Math.abs(dz) < rK ? HX + Math.sqrt(rK * rK - dz * dz) : 0;
+    const k = 0.004, w = (wc + ws + Math.sqrt((wc - ws) ** 2 + k * k)) / 2;   // smooth max: core blended into the round shoulders
+    const hT = 0.025 * (0.8 + 0.2 * Math.pow(1 - u * u, 0.5)) * (1 - 0.28 * sm(0.05, z1, z)) + 0.0004;
+    const hB = 0.0165 * (0.8 + 0.2 * Math.pow(1 - u * u, 0.5)) * (1 - 0.2 * sm(0.06, z1, z)) + 0.0004;
+    return { z, w, hT, hB, y: 0.002 }; };
+  {
+    const pos = [], cl = [], idx = [], nu = 200, nv = UNI_P.length;
+    for (let i = 0; i <= nu; i++) { const t = (1 - Math.cos(Math.PI * i / nu)) / 2, s = core(t);
+      for (let j = 0; j < nv; j++) { const [px, py, fl] = UNI_P[j]; pos.push(s.w * px, s.y + (py >= 0 ? s.hT : s.hB) * py, s.z); cl.push(...col(fl, false)); } }
+    for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) { const a = i * nv + j, b = i * nv + (j + 1) % nv; idx.push(a, a + nv, b, b, a + nv, b + nv); }
+    { const s0 = core(0), b0 = pos.length / 3; pos.push(0, s0.y, s0.z); cl.push(...col(0, false));   // flat front face
+      for (let j = 0; j < nv; j++) idx.push(b0, (j + 1) % nv, j); }
+    const s = core(1), base = pos.length / 3; pos.push(0, s.y, s.z); cl.push(...col(0, false));
+    for (let j = 0; j < nv; j++) idx.push(base, nu * nv + j, nu * nv + (j + 1) % nv);
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(cl, 3)); g.setIndex(idx); g.computeVertexNormals();
+    mesh(g, skin, D);
+  }
+  // corner pivot drums + arms + pods
+  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, ez]) => {
+    const d = [sx * Math.sin(ang), 0, ez * Math.cos(ang)], e = [d[2], 0, -d[0]];
+    const H = [sx * HX, 0, ez * HZ];
+    const F = p => [H[0] + d[0] * -p[2] + e[0] * p[0], p[1], H[2] + d[2] * -p[2] + e[2] * p[0]];
+    // arm: leaves the round shoulder at nearly full body depth, tapering in plan and in depth to the pod;
+    // its root starts inside the shoulder, so the only visible joint is the seam where it meets the arc
+    const pos = [], cl = [], idx = [], nu = 110, nv = UNI_P.length;
+    for (let i = 0; i <= nu; i++) { const t = i / nu, s = lerp(rK * 0.6, AL - 0.008, t), q = sm(0.02, 0.3, t);
+      const w = lerp(rK * 0.9, 0.0105, Math.pow(t, 0.75)), hT = lerp(0.0215, 0.0072, q), hB = lerp(0.0138, 0.0058, q), yc = 0.002 + 0.004 * t * t;
+      for (let j = 0; j < nv; j++) { const [px, py, fl] = UNI_P[j]; pos.push(...F([w * px, yc + (py >= 0 ? hT : hB) * py, -s])); cl.push(...col(fl, false)); } }
+    for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) { const a = i * nv + j, b = i * nv + (j + 1) % nv; idx.push(a, a + nv, b, b, a + nv, b + nv); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(cl, 3)); g.setIndex(idx); g.computeVertexNormals();
+    mesh(g, skin, D);
+    const pod = new THREE.Group(); const [px, , pz] = F([0, 0, -AL]); pod.position.set(px, 0.0075, pz); D.add(pod);
+    mesh(lathe([[0, -0.0275], [0.0128, -0.0275], [0.0146, -0.0262], [0.0168, -0.022], [0.0174, -0.012], [0.0174, 0.0045], [0.016, 0.0072], [0.0125, 0.008]], 128), uniMat(f, false), pod);
+    mesh(lathe([[0.0085, -0.0277], [0.0095, -0.0279], [0.0105, -0.0277], [0.0095, -0.0275]], 96), orange, pod);   // status light ring
+    buildMotor(pod, 0.008, dark);
+    // landing leg: slim machined strut under the arm
+    const a = F([0, -0.006, -0.1]), b = F([0, -0.1505, -0.15]);
+    leg(D, a, b, Object.assign(MAT.dark(), { metalness: 0.6, roughness: 0.35 }), false);
+  });
+  // depth-camera ports: two small flush lenses in the flat front face (no visor)
+  [-0.019, 0.019].forEach(x => { const l = mesh(new THREE.CylinderGeometry(0.0042, 0.0042, 0.001, 48), MAT.glass(), D); l.rotation.x = Math.PI / 2; l.position.set(x, 0.006, -0.1503); });
+  const gm = new THREE.Group(); gm.position.set(0, -0.0205, -0.1); D.add(gm);   // gimbal camera under the nose
+  mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.008, 40), dark, gm).position.y = -0.002;
+  mesh(new THREE.BoxGeometry(0.034, 0.022, 0.026), dark, gm).position.y = -0.017;
+  const ln = mesh(new THREE.CylinderGeometry(0.007, 0.0075, 0.006, 40), MAT.glass(), gm); ln.rotation.x = Math.PI / 2; ln.position.set(0, -0.017, -0.015);
+  D.position.y = 0.143;
+  return D;
+}
+
+let current = null;
+const VIEWS = {
+  hero: [[0.66, 0.36, -0.78], [0, 0.11, -0.02], 27],
+  side: [[1.1, 0.16, -0.05], [0, 0.11, -0.02], 22],
+  top: [[0.0, 1.25, -0.42], [0, 0.12, -0.01], 30],
+  hinge: [[0.19, 0.21, -0.25], [0.066, 0.143, -0.075], 20],
+  low: [[0.55, 0.17, -0.62], [0, 0.13, -0.02], 26],
+};
+window.render = (name, view, w = 1200, h = 900, finish = 'grey', fold = 45) => {
+  if (current) scene.remove(current);
+  current = name === 'unibody' ? unibody(finish, fold) : concept(name);
+  RND.setPixelRatio(1); RND.setSize(w, h, false); cam.aspect = w / h;
+  const [p, t, fov] = VIEWS[view]; cam.position.set(...p); cam.fov = fov; cam.lookAt(...t); cam.updateProjectionMatrix();
+  key.target.position.set(0, 0.1, 0);
+  RND.render(scene, cam);
+  return canvas.toDataURL('image/jpeg', 0.93);
+};
+window.ready = true;
+</script>
