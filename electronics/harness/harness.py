@@ -14,6 +14,7 @@ import json, math, os, re
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 LINK = json.load(open(os.path.join(ROOT, 'electronics', 'linkage', 'linkage.json')))
+LEGS = json.load(open(os.path.join(ROOT, 'electronics', 'linkage', 'legs.json')))
 
 GEO = dict(hingeX=0.068, hingeZ=0.07, armL=0.26, aOpen=math.radians(45), propY=0.03)
 ARMS = [dict(side=-1, end=-1, name='FL'), dict(side=1, end=-1, name='FR'), dict(side=-1, end=1, name='RL'), dict(side=1, end=1, name='RR')]
@@ -57,13 +58,15 @@ comp('BUCK', '12 V buck', 'Synchronous buck, 12 V 3 A, 500 kHz', [700, 120], rai
 comp('CM4', 'Companion computer', 'Raspberry Pi CM4 on 12 V carrier board', [940, 120])
 comp('CAM', 'Depth camera', 'Stereo depth camera, USB-C', [1160, 60])
 comp('FAN', 'Heatsink fan', '30 mm 5 V fan', [1160, 200])
+comp('GIMBAL', 'Gimbal camera', '2-axis brushless gimbal + 4K action camera, 12 V, serial control', [1300, 470],
+     at=P(0, -0.0195, -0.07))
 comp('RX', 'Receiver', '2.4 GHz serial receiver, dual antenna', [700, 600],
      at=P(-0.02, 0.0175, 0.128), size=P(0.016, 0.002, 0.012))
 for i, a in enumerate(ARMS):
-    comp('M%d' % (i + 1), 'Motor %s' % a['name'], '2806.5 1100 KV, 7" tri-blade', [180 + i * 180, 760 - 0], arm=i)
+    comp('M%d' % (i + 1), 'Motor %s' % a['name'], '2807 1300 KV, 7" tri-blade', [180 + i * 180, 760 - 0], arm=i)
     comp('S%d' % (i + 1), 'Fold servo %s' % a['name'], 'HV micro servo 2.5 kg cm, 7.4 V, inverted through top plate', [880 + (i % 2) * 150, 560 + (i // 2) * 120],
          arm=i, **servo_pose(a))
-    comp('LED%d' % (i + 1), 'Nav LED %s' % a['name'], 'WS2812B, %s' % ('white (front)' if a['end'] < 0 else 'red (rear)'), [180 + i * 180, 900], arm=i)
+    comp('LED%d' % (i + 1), 'Nav LED %s' % a['name'], 'WS2812B in the motor pod base, %s' % ('white (front)' if a['end'] < 0 else 'red (rear)'), [180 + i * 180, 900], arm=i)
 
 # ---------------------------------------------------------------- cables
 W = []
@@ -93,7 +96,7 @@ for i, a in enumerate(ARMS):
           [('M%d_%s' % (i + 1, p), c, 'M%d%s' % (i + 1, p), p) for p, c in PH], 18, route, design_A=30, conn='soldered both ends')
     # nav LED: thin 3-core from the FC LED pad, alongside the phase wires, to the LED beyond the motor
     lroute = [P(s * 0.016, -0.0012, e * 0.016), P(s * 0.032, -0.0068, e * 0.04), P(s * 0.052, -0.0062, e * 0.06),
-              AP(i, 0.0034, UNDER, -0.014), AP(i, 0.0034, UNDER, -(L - 0.03)), AP(i, 0.006, UNDER, -(L + 0.004)), AP(i, 0, UNDER + 0.0003, -(L + 0.013))]
+              AP(i, 0.0034, UNDER, -0.014), AP(i, 0.0034, UNDER, -(L - 0.03)), AP(i, 0.005, -0.012, -(L - 0.012)), AP(i, 0.002, -0.0205, -L)]
     cable('W2%d' % (i + 1), 'Nav LED %s' % a['name'], 'FC', 'LED%d' % (i + 1),
           [('5V', 'red', 'LED5V', 'VDD'), ('LED%d_DIN' % (i + 1), 'white', 'LED%d' % (i + 1), 'DIN'), ('GND', 'black', 'GND', 'GND')], 30, lroute, design_A=0.06,
           conn='FC pads / soldered')
@@ -133,12 +136,21 @@ for i, a in enumerate(ARMS):
           [('GND', 'brown', 'GND', 'GND'), ('SERVO_7V4', 'red', 'V+', 'V+%d' % (i + 1)), ('SRV%d' % (i + 1), 'orange', 'SIG', 'SIG%d' % (i + 1))], 26, route,
           design_A=1.2, conn='servo lead / 3-pin 2.54 mm')
 
+# gimbal camera under the belly: 12 V from the buck, serial control from the FC; both go down through the right-hand
+# side slots of the plates and forward inside the belly pan
+cable('W70', 'Gimbal 12 V', 'BUCK', 'GIMBAL', [('COMP_12V', 'red', 'VOUT2', '12V'), ('GND', 'black', 'GND', 'GND')], 24,
+      [P(0.013, PLATE, 0.054), P(0.032, PLATE, 0.034), P(0.05, 0.012, 0.02), P(0.05, -0.004, 0.012), P(0.05, -0.0195, 0.0),
+       P(0.036, -0.0245, -0.03), P(0.014, -0.0225, -0.062)], design_A=0.45, conn='JST-PH 2-pin / gimbal board')
+cable('W71', 'Gimbal control', 'FC', 'GIMBAL', [('UART3_TX', 'yellow', 'TX3', 'RX'), ('UART3_RX', 'green', 'RX3', 'TX'), ('GND', 'black', 'GND', 'GND')], 30,
+      [P(0.016, -0.0012, -0.0135), P(0.032, -0.006, -0.022), P(0.05, -0.012, -0.02), P(0.05, -0.0195, -0.016),
+       P(0.034, -0.0245, -0.04), P(0.006, -0.0225, -0.062)], pitch=0.001, design_A=0.01, conn='JST-GH 4-pin / gimbal board')
+
 # companion computer: UART to the FC (down through the rear-left window), USB-C from the depth camera, fan
 cable('W50', 'CM4-FC telemetry UART', 'CM4', 'FC', [('UART1_TX', 'yellow', 'TX', 'RX1'), ('UART1_RX', 'green', 'RX', 'TX1'), ('GND', 'black', 'GND', 'GND')], 30,
       [P(-0.022, 0.0213, 0.108), P(-0.024, 0.017, 0.116), P(-0.024, 0.009, 0.115), P(-0.016, 0.004, 0.08), P(-0.012, 0.002, 0.04), P(-0.012, -0.0012, 0.0165)],
       pitch=0.001, design_A=0.01, conn='JST-GH 4-pin / 40-pin header')
 cable('W51', 'Depth camera USB-C', 'CAM', 'CM4', [('USB3', 'black', 'USB-C', 'USB')], 22,
-      [P(0.03, 0.04, -0.111), P(0.036, 0.03, -0.09), P(0.03, 0.026, 0.0), P(0.022, 0.0258, 0.078)], pitch=0.0036, design_A=0.9, conn='USB-C both ends')
+      [P(0.03, 0.033, -0.111), P(0.036, 0.028, -0.09), P(0.03, 0.026, 0.0), P(0.022, 0.0258, 0.078)], pitch=0.0036, design_A=0.9, conn='USB-C both ends')
 cable('W52', 'Fan', 'CM4', 'FAN', [('FAN_5V', 'red', 'FAN+', '+'), ('GND', 'black', 'GND', '-')], 30,
       [P(0.03, 0.0245, 0.104), P(0.026, 0.031, 0.11), P(0.012, 0.0386, 0.11)], design_A=0.1, conn='JST-SH 2-pin')
 
@@ -180,7 +192,7 @@ for w in W:
 DATA = dict(
     note='Generated by electronics/harness/harness.py; do not edit by hand.',
     colors=dict(red='#b3261e', black='#1a1b1d', brown='#5a3a24', orange='#e0861f', yellow='#e3c02a', green='#2f8f4e', white='#e9e9e6', grey='#7a7f86'),
-    od=OD, linkage=LINK, components=C, cables=W)
+    od=OD, linkage=LINK, legs=LEGS, components=C, cables=W)
 
 if __name__ == '__main__':
     out = json.dumps(DATA, separators=(',', ':'))

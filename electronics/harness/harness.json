@@ -57,6 +57,46 @@
    "margin": 5.7
   }
  },
+ "legs": {
+  "hinge_local": [
+   0.0,
+   -0.017,
+   -0.085
+  ],
+  "leg_len": 0.128,
+  "psi_deployed_deg": 20.0,
+  "psi_stowed_deg": 87.25,
+  "horn_r": 0.011,
+  "horn_offset_deg": -60.0,
+  "anchor": [
+   0.067,
+   -0.022,
+   -0.099
+  ],
+  "rod_len": 0.06197,
+  "min_transmission_deg": 48.9,
+  "psi_table_deg": [
+   20.0,
+   26.12,
+   31.62,
+   36.75,
+   41.62,
+   46.25,
+   50.5,
+   54.62,
+   58.63,
+   62.38,
+   65.88,
+   69.25,
+   72.5,
+   75.5,
+   78.25,
+   80.88,
+   83.25,
+   85.38,
+   87.25
+  ]
+ },
  "components": {
   "BAT": {
    "name": "Flight battery",
@@ -161,6 +201,19 @@
     200
    ]
   },
+  "GIMBAL": {
+   "name": "Gimbal camera",
+   "part": "2-axis brushless gimbal + 4K action camera, 12 V, serial control",
+   "sch": [
+    1300,
+    470
+   ],
+   "at": [
+    0,
+    -0.0195,
+    -0.07
+   ]
+  },
   "RX": {
    "name": "Receiver",
    "part": "2.4 GHz serial receiver, dual antenna",
@@ -181,7 +234,7 @@
   },
   "M1": {
    "name": "Motor FL",
-   "part": "2806.5 1100 KV, 7\" tri-blade",
+   "part": "2807 1300 KV, 7\" tri-blade",
    "sch": [
     180,
     760
@@ -213,7 +266,7 @@
   },
   "LED1": {
    "name": "Nav LED FL",
-   "part": "WS2812B, white (front)",
+   "part": "WS2812B in the motor pod base, white (front)",
    "sch": [
     180,
     900
@@ -222,7 +275,7 @@
   },
   "M2": {
    "name": "Motor FR",
-   "part": "2806.5 1100 KV, 7\" tri-blade",
+   "part": "2807 1300 KV, 7\" tri-blade",
    "sch": [
     360,
     760
@@ -254,7 +307,7 @@
   },
   "LED2": {
    "name": "Nav LED FR",
-   "part": "WS2812B, white (front)",
+   "part": "WS2812B in the motor pod base, white (front)",
    "sch": [
     360,
     900
@@ -263,7 +316,7 @@
   },
   "M3": {
    "name": "Motor RL",
-   "part": "2806.5 1100 KV, 7\" tri-blade",
+   "part": "2807 1300 KV, 7\" tri-blade",
    "sch": [
     540,
     760
@@ -295,7 +348,7 @@
   },
   "LED3": {
    "name": "Nav LED RL",
-   "part": "WS2812B, red (rear)",
+   "part": "WS2812B in the motor pod base, red (rear)",
    "sch": [
     540,
     900
@@ -304,7 +357,7 @@
   },
   "M4": {
    "name": "Motor RR",
-   "part": "2806.5 1100 KV, 7\" tri-blade",
+   "part": "2807 1300 KV, 7\" tri-blade",
    "sch": [
     720,
     760
@@ -336,7 +389,7 @@
   },
   "LED4": {
    "name": "Nav LED RR",
-   "part": "WS2812B, red (rear)",
+   "part": "WS2812B in the motor pod base, red (rear)",
    "sch": [
     720,
     900
@@ -678,26 +731,26 @@
     {
      "arm": 0,
      "p": [
-      0.006,
-      -0.0047,
-      -0.264
+      0.005,
+      -0.012,
+      -0.248
      ]
     },
     {
      "arm": 0,
      "p": [
-      0,
-      -0.0044,
-      -0.273
+      0.002,
+      -0.0205,
+      -0.26
      ]
     }
    ],
    "pitch": 0.00084,
    "design_A": 0.06,
    "conn": "FC pads / soldered",
-   "length_mm": 367,
-   "ohm": 0.12441,
-   "drop_mV": 7.5
+   "length_mm": 366,
+   "ohm": 0.12407,
+   "drop_mV": 7.4
   },
   {
    "id": "W12",
@@ -850,25 +903,25 @@
     {
      "arm": 1,
      "p": [
-      0.006,
-      -0.0047,
-      -0.264
+      0.005,
+      -0.012,
+      -0.248
      ]
     },
     {
      "arm": 1,
      "p": [
-      0,
-      -0.0044,
-      -0.273
+      0.002,
+      -0.0205,
+      -0.26
      ]
     }
    ],
    "pitch": 0.00084,
    "design_A": 0.06,
    "conn": "FC pads / soldered",
-   "length_mm": 370,
-   "ohm": 0.12543,
+   "length_mm": 369,
+   "ohm": 0.12509,
    "drop_mV": 7.5
   },
   {
@@ -1022,25 +1075,25 @@
     {
      "arm": 2,
      "p": [
-      0.006,
-      -0.0047,
-      -0.264
+      0.005,
+      -0.012,
+      -0.248
      ]
     },
     {
      "arm": 2,
      "p": [
-      0,
-      -0.0044,
-      -0.273
+      0.002,
+      -0.0205,
+      -0.26
      ]
     }
    ],
    "pitch": 0.00084,
    "design_A": 0.06,
    "conn": "FC pads / soldered",
-   "length_mm": 370,
-   "ohm": 0.12543,
+   "length_mm": 369,
+   "ohm": 0.12509,
    "drop_mV": 7.5
   },
   {
@@ -1194,26 +1247,26 @@
     {
      "arm": 3,
      "p": [
-      0.006,
-      -0.0047,
-      -0.264
+      0.005,
+      -0.012,
+      -0.248
      ]
     },
     {
      "arm": 3,
      "p": [
-      0,
-      -0.0044,
-      -0.273
+      0.002,
+      -0.0205,
+      -0.26
      ]
     }
    ],
    "pitch": 0.00084,
    "design_A": 0.06,
    "conn": "FC pads / soldered",
-   "length_mm": 367,
-   "ohm": 0.12441,
-   "drop_mV": 7.5
+   "length_mm": 366,
+   "ohm": 0.12407,
+   "drop_mV": 7.4
   },
   {
    "id": "W30",
@@ -1825,6 +1878,135 @@
    "drop_mV": 51.1
   },
   {
+   "id": "W70",
+   "name": "Gimbal 12 V",
+   "frm": "BUCK",
+   "to": "GIMBAL",
+   "cores": [
+    {
+     "net": "COMP_12V",
+     "color": "red",
+     "a": "VOUT2",
+     "b": "12V"
+    },
+    {
+     "net": "GND",
+     "color": "black",
+     "a": "GND",
+     "b": "GND"
+    }
+   ],
+   "awg": 24,
+   "route": [
+    [
+     0.013,
+     0.0185,
+     0.054
+    ],
+    [
+     0.032,
+     0.0185,
+     0.034
+    ],
+    [
+     0.05,
+     0.012,
+     0.02
+    ],
+    [
+     0.05,
+     -0.004,
+     0.012
+    ],
+    [
+     0.05,
+     -0.0195,
+     0.0
+    ],
+    [
+     0.036,
+     -0.0245,
+     -0.03
+    ],
+    [
+     0.014,
+     -0.0225,
+     -0.062
+    ]
+   ],
+   "pitch": 0.0012599999999999998,
+   "design_A": 0.45,
+   "conn": "JST-PH 2-pin / gimbal board",
+   "length_mm": 178,
+   "ohm": 0.01499,
+   "drop_mV": 6.7
+  },
+  {
+   "id": "W71",
+   "name": "Gimbal control",
+   "frm": "FC",
+   "to": "GIMBAL",
+   "cores": [
+    {
+     "net": "UART3_TX",
+     "color": "yellow",
+     "a": "TX3",
+     "b": "RX"
+    },
+    {
+     "net": "UART3_RX",
+     "color": "green",
+     "a": "RX3",
+     "b": "TX"
+    },
+    {
+     "net": "GND",
+     "color": "black",
+     "a": "GND",
+     "b": "GND"
+    }
+   ],
+   "awg": 30,
+   "route": [
+    [
+     0.016,
+     -0.0012,
+     -0.0135
+    ],
+    [
+     0.032,
+     -0.006,
+     -0.022
+    ],
+    [
+     0.05,
+     -0.012,
+     -0.02
+    ],
+    [
+     0.05,
+     -0.0195,
+     -0.016
+    ],
+    [
+     0.034,
+     -0.0245,
+     -0.04
+    ],
+    [
+     0.006,
+     -0.0225,
+     -0.062
+    ]
+   ],
+   "pitch": 0.001,
+   "design_A": 0.01,
+   "conn": "JST-GH 4-pin / gimbal board",
+   "length_mm": 129,
+   "ohm": 0.04373,
+   "drop_mV": 0.4
+  },
+  {
    "id": "W50",
    "name": "CM4-FC telemetry UART",
    "frm": "CM4",
@@ -1906,12 +2088,12 @@
    "route": [
     [
      0.03,
-     0.04,
+     0.033,
      -0.111
     ],
     [
      0.036,
-     0.03,
+     0.028,
      -0.09
     ],
     [
@@ -1928,9 +2110,9 @@
    "pitch": 0.0036,
    "design_A": 0.9,
    "conn": "USB-C both ends",
-   "length_mm": 209,
-   "ohm": 0.01108,
-   "drop_mV": 10.0
+   "length_mm": 207,
+   "ohm": 0.01097,
+   "drop_mV": 9.9
   },
   {
    "id": "W52",
