@@ -80,21 +80,21 @@ pre{margin:0;background:var(--paper);border:1px solid var(--hair);border-radius:
   <div class="tbl"><table>
     <thead><tr><th>Quantity</th><th>Flight model</th><th>SPICE</th><th>Result</th></tr></thead>
     <tbody>
-      <tr><td>ESC duty at hover (11.2k rpm, 15.8 V)</td><td class="n">56.8 <span class="u">%</span></td><td class="n">60.9 <span class="u">%</span></td><td><span class="verdict v-fix">corrected</span></td></tr>
-      <tr><td>Bus current per ESC at hover</td><td class="n">5.10 <span class="u">A</span></td><td class="n">5.15 <span class="u">A</span></td><td><span class="verdict v-ok">agrees</span></td></tr>
-      <tr><td>ESC + motor-copper efficiency at hover</td><td class="n">94.1 <span class="u">%</span></td><td class="n">94.3 <span class="u">%</span></td><td><span class="verdict v-ok">agrees</span></td></tr>
-      <tr><td>Pack current at hover, all loads</td><td class="n">21.9 <span class="u">A</span></td><td class="n">21.6 <span class="u">A</span></td><td><span class="verdict v-ok">agrees</span></td></tr>
-      <tr><td>Bus minimum, 20 % pack, 176 A surge</td><td class="n">11.59 <span class="u">V</span></td><td class="n">11.19 <span class="u">V</span></td><td><span class="verdict v-ok">agrees</span></td></tr>
-      <tr><td>Effective motor resistance at hover speed</td><td class="n">40 <span class="u">mΩ</span></td><td class="n">144 <span class="u">mΩ</span></td><td><span class="verdict v-fix">corrected</span></td></tr>
-      <tr><td>Max thrust per rotor, full duty, 15.5 V</td><td class="n">10.23 <span class="u">N</span></td><td class="n">7.62 <span class="u">N</span></td><td><span class="verdict v-fix">corrected</span></td></tr>
+      <tr><td>ESC duty at hover (11.0k rpm, 15.8 V)</td><td class="n">55.6 <span class="u">%</span></td><td class="n">59.3 <span class="u">%</span></td><td><span class="verdict v-fix">corrected</span></td></tr>
+      <tr><td>Bus current per ESC at hover</td><td class="n">4.81 <span class="u">A</span></td><td class="n">4.85 <span class="u">A</span></td><td><span class="verdict v-ok">agrees</span></td></tr>
+      <tr><td>ESC + motor-copper efficiency at hover</td><td class="n">94.2 <span class="u">%</span></td><td class="n">94.4 <span class="u">%</span></td><td><span class="verdict v-ok">agrees</span></td></tr>
+      <tr><td>Pack current at hover, all loads</td><td class="n">20.8 <span class="u">A</span></td><td class="n">20.5 <span class="u">A</span></td><td><span class="verdict v-ok">agrees</span></td></tr>
+      <tr><td>Bus minimum, 20 % pack, 176 A surge</td><td class="n">11.59 <span class="u">V</span></td><td class="n">11.20 <span class="u">V</span></td><td><span class="verdict v-ok">agrees</span></td></tr>
+      <tr><td>Effective motor resistance at hover speed</td><td class="n">40 <span class="u">mΩ</span></td><td class="n">145 <span class="u">mΩ</span></td><td><span class="verdict v-fix">corrected</span></td></tr>
+      <tr><td>Max thrust per rotor, full duty, 15.5 V</td><td class="n">10.23 <span class="u">N</span></td><td class="n">7.52 <span class="u">N</span></td><td><span class="verdict v-fix">corrected</span></td></tr>
       <tr><td>Pack voltage where the 12 V rail starts to drop</td><td class="n">12.80 <span class="u">V</span></td><td class="n">12.32 <span class="u">V</span></td><td><span class="verdict v-fix">corrected</span></td></tr>
       <tr><td>Pack voltage where the computer browns out (rail &lt; 11.0 V)</td><td class="n">11.80 <span class="u">V</span></td><td class="n">11.77 <span class="u">V</span></td><td><span class="verdict v-fix">corrected</span></td></tr>
-      <tr><td>Bus ripple at hover, bulk capacitor removed</td><td class="n">not modelled</td><td class="n">276 <span class="u">mV pk-pk</span></td><td><span class="verdict v-new">new insight</span></td></tr>
+      <tr><td>Bus ripple at hover, bulk capacitor removed</td><td class="n">not modelled</td><td class="n">237 <span class="u">mV pk-pk</span></td><td><span class="verdict v-new">new insight</span></td></tr>
     </tbody>
   </table></div>
   <div class="fb">
     <h3>Fed back into SlipStream</h3>
-    <p><b>Motor.</b> The flight model drove each motor as a plain 60 mΩ resistance against back-EMF. In the switching simulation, commutation and winding inductance make the motor behave like a larger resistance that grows with speed. Fitted over three speeds it is <code>R_eff = 44 mΩ + 85.6 µΩ·s × ω</code>, with an effective back-EMF constant of <code>7.10 mV·s/rad</code> at 15° timing advance. The flight model now uses that, which lowers the top-end thrust of each rotor from 10.23 N to 7.62 N.</p>
+    <p><b>Motor.</b> The flight model drove each motor as a plain 60 mΩ resistance against back-EMF. In the switching simulation, commutation and winding inductance make the motor behave like a larger resistance that grows with speed. Fitted over three speeds it is <code>R_eff = 31 mΩ + 99.4 µΩ·s × ω</code>, with an effective back-EMF constant of <code>7.07 mV·s/rad</code> at 15° timing advance. The flight model now uses that, which lowers the top-end thrust of each rotor from 10.23 N to 7.52 N.</p>
     <p><b>12 V rail.</b> The flight model treated the regulator as a fixed 0.8 V dropout, so it predicted brownout at 11.8 V. The switching simulation shows the 95 % maximum duty and the converter's own losses set the limit instead. The rail model is now that ceiling minus a loss term fitted to the SPICE brownout point, <code>v12 = min(12, 0.95·Vbus − 0.18 V)</code>. The fixed-dropout guess of 11.8 V turns out close; the larger change is that the rail starts sagging at 12.32 V rather than 12.8 V.</p>
   </div>
 </section>
@@ -105,29 +105,29 @@ pre{margin:0;background:var(--paper);border:1px solid var(--hair);border-radius:
   <figure><img src="plots/bus_surge.png" alt="Bus voltage and pack current through a hover-to-surge transient for a full pack, a 20 % pack, and a 20 % pack without the bulk capacitor"><figcaption>All four ESCs ramp from hover to their 45 A phase-current limit between 1.0 and 1.6 ms.</figcaption></figure>
   <figure><img src="plots/bus_ripple.png" alt="Bus voltage ripple at hover with and without the bulk capacitor"><figcaption>Hover, 20 % pack: ripple with the 1000 µF bulk capacitor fitted and with it removed.</figcaption></figure>
   <ul class="find">
-    <li><b>The surge pulls 176 A from the pack.</b> On a 20 % pack the bus bottoms out at 11.19 V and settles near 11.31 V. A full pack holds 12.83 V. The flight model's resistive estimate (11.59 V) is close, because the pack's ohmic resistance dominates.</li>
+    <li><b>The surge pulls 176 A from the pack.</b> On a 20 % pack the bus bottoms out at 11.20 V and settles near 11.32 V. A full pack holds 12.84 V. The flight model's resistive estimate (11.59 V) is close, because the pack's ohmic resistance dominates.</li>
     <li><b>On a 20 % pack that surge would reset the companion computer.</b> The bus falls below the 11.77 V where the 12 V rail drops out (see the buck section). This is why the autopilot climbs at a limited rate and uses a gentler knife-edge pop-up instead of driving all four ESCs into current limit.</li>
-    <li><b>The bulk capacitor matters for ripple, not for the surge minimum.</b> Removing it raises the hover ripple from 161 to 276 mV pk-pk, while the surge minimum only moves to 10.94 V. The capacitor carries 2.8 A rms at hover and 7.8 A rms at full current, which sets its ripple-current rating.</li>
+    <li><b>The bulk capacitor matters for ripple, not for the surge minimum.</b> Removing it raises the hover ripple from 150 to 237 mV pk-pk, while the surge minimum only moves to 10.94 V. The capacitor carries 2.4 A rms at hover and 7.8 A rms at full current, which sets its ripple-current rating.</li>
   </ul>
 </section>
 
 <section>
   <div class="sec-head"><h2>ESC power stage and motor</h2><span class="file">esc_bldc.cir</span></div>
   <figure class="sch"><div id="s2"></div><figcaption>Three MOSFET half-bridges (3 mΩ on-resistance plus body diodes) with six-step commutation, complementary 48 kHz PWM and 15° timing advance, driving a star-connected BLDC: 30 mΩ and 12 µH per phase and a trapezoidal back-EMF of K<sub>e</sub>·ω/2 per phase. Rotor speed is held fixed so the electrical steady state can be measured directly.</figcaption></figure>
-  <figure><img src="plots/esc_sweep.png" alt="Shaft power versus ESC duty at hover speed"><figcaption>Shaft power versus duty at 1174 rad/s. The hover set-point is where it meets the propeller load from the flight model (75.9 W).</figcaption></figure>
+  <figure><img src="plots/esc_sweep.png" alt="Shaft power versus ESC duty at hover speed"><figcaption>Shaft power versus duty at 1149 rad/s. The hover set-point is where it meets the propeller load from the flight model (71.6 W).</figcaption></figure>
   <div class="two">
     <figure><img src="plots/esc_hover.png" alt="Hover phase voltage and three phase currents over two electrical periods"><figcaption>Hover: phase A terminal voltage, star point and the three phase currents.</figcaption></figure>
-    <figure><img src="plots/esc_pop.png" alt="High-load phase voltage and currents during the knife-edge pop-up"><figcaption>Knife-edge pop-up: 13.7k rpm, 98 % duty on a sagged 14.2 V bus.</figcaption></figure>
+    <figure><img src="plots/esc_pop.png" alt="High-load phase voltage and currents during the knife-edge pop-up"><figcaption>Knife-edge pop-up: 13.4k rpm, 98 % duty on a sagged 14.2 V bus.</figcaption></figure>
   </div>
   <ul class="find">
-    <li><b>Bus current at hover matches; the duty needed does not.</b> SPICE draws 5.15 A from the bus against the model's 5.10 A, but needs 60.9 % duty where the model expected 56.8 %. Without timing advance the gap is far larger: at 11.2k rpm little voltage is left after back-EMF, and the winding inductance cannot build current within one commutation step.</li>
+    <li><b>Bus current at hover matches; the duty needed does not.</b> SPICE draws 4.85 A from the bus against the model's 4.81 A, but needs 59.3 % duty where the model expected 55.6 %. Without timing advance the gap is far larger: at 11.0k rpm little voltage is left after back-EMF, and the winding inductance cannot build current within one commutation step.</li>
     <li><b>Duty is a steep control input.</b> Back-EMF cancels most of the applied voltage, so one percent of duty moves shaft power by roughly ten watts. That is why the flight controller needs rotor-speed feedback and battery-voltage compensation.</li>
-    <li><b>Ripple is large.</b> Each phase carries 7.53 A rms at hover with 25.37 A pk-pk ripple at 48 kHz, so motor iron and copper see far more than the average current suggests.</li>
-    <li><b>The knife-edge pop-up is right at the limit.</b> It needs about 134 W per rotor at 13.7k rpm. At 98 % duty on a sagged 14.2 V bus one ESC delivers 239 W (19.1 A from the bus, 88.1 % efficient), so the manoeuvre only works while the pack can hold its voltage.</li>
+    <li><b>Ripple is large.</b> Each phase carries 7.07 A rms at hover with 24.24 A pk-pk ripple at 48 kHz, so motor iron and copper see far more than the average current suggests.</li>
+    <li><b>The knife-edge pop-up is right at the limit.</b> It needs about 126 W per rotor at 13.4k rpm. At 98 % duty on a sagged 14.2 V bus one ESC delivers 254 W (20.5 A from the bus, 87.1 % efficient), so the manoeuvre only works while the pack can hold its voltage.</li>
   </ul>
   <div class="tbl"><table>
     <thead><tr><th>Rotor speed [rad/s]</th><th>[rpm]</th><th>R_eff [mΩ]</th><th>Ke_eff [mV·s/rad]</th></tr></thead>
-    <tbody><tr><td class="n">763</td><td class="n">7.3k</td><td class="n">110</td><td class="n">7.11</td></tr><tr><td class="n">1174</td><td class="n">11.2k</td><td class="n">141</td><td class="n">7.13</td></tr><tr><td class="n">1467</td><td class="n">14.0k</td><td class="n">171</td><td class="n">7.08</td></tr></tbody>
+    <tbody><tr><td class="n">747</td><td class="n">7.1k</td><td class="n">107</td><td class="n">7.13</td></tr><tr><td class="n">1149</td><td class="n">11.0k</td><td class="n">140</td><td class="n">7.10</td></tr><tr><td class="n">1436</td><td class="n">13.7k</td><td class="n">176</td><td class="n">6.97</td></tr></tbody>
   </table></div>
 </section>
 
