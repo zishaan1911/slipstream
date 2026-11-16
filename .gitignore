@@ -12,3 +12,5 @@ blender/sx01.glb
 blender/t_*.png
 blender/test.png
 renders/t_*.png
+blender/knife_anim.json
+renders/*.log

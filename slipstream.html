@@ -740,10 +740,11 @@ function buildCable(c, a) {
     return _hs.normalize().clone();
   });
   let len = 0; for (let i = 1; i < pts.length; i++) len += pts[i].distanceTo(pts[i - 1]);
+  c.seg = c.seg || Math.max(24, Math.round(len / 0.0025));   // fixed at the first (open) build: same vertices at every fold angle
   c.def.cores.forEach((core, k) => {
     const o = (k - (n - 1) / 2) * c.def.pitch;
     const curve = new THREE.CatmullRomCurve3(pts.map((p, i) => p.clone().addScaledVector(sides[i], o)), false, 'centripetal');
-    const m = named(mesh(new THREE.TubeGeometry(curve, Math.max(24, Math.round(len / 0.0025)), r, 10), HARNESS_M[core.color] || M.wireBlk, 0, 0, 0, c.body),
+    const m = named(mesh(new THREE.TubeGeometry(curve, c.seg, r, 10), HARNESS_M[core.color] || M.wireBlk, 0, 0, 0, c.body),
       'Wire_' + c.def.id + '_' + core.net);
     m.castShadow = r > 0.0006; c.meshes.push(m); c.D.wires.push(m);
   });
@@ -2412,6 +2413,25 @@ function simShot(lv, slow = { gate: 0.16, pop: 1 }) {
   for (let k = 0; k < 240 * 10 && !(AP.phase === 'approach' && S.p.z < -0.8); k++) step();
   cam.mode = '';
 }
+// ---------------------------------------------------------------- moving parts, for animation exported to Blender
+let MOVERS = [];
+const ANIM = { frames: [] };
+// objects whose local transform changes with the fold angle (arms, linkage, legs, rods), plus the props
+function findMovers() {
+  const snap = () => { drone.root.updateMatrixWorld(true); const m = new Map(); drone.root.traverse(o => m.set(o, o.matrix.elements.slice())); return m; };
+  updateDroneShape(GEO.aOpen); const A = snap();
+  updateDroneShape(GEO.aFold); const B = snap();
+  updateDroneShape(lerp(GEO.aOpen, GEO.aFold, 0.4)); const C = snap();
+  updateDroneShape(GEO.aOpen); drone.root.updateMatrixWorld(true);
+  const out = [];
+  drone.root.traverse(o => {
+    if (o === drone.root) return;
+    const a = A.get(o), b = B.get(o), c = C.get(o);
+    if (drone.props.includes(o) || (a && b && c && a.some((v, i) => Math.abs(v - b[i]) > 1e-7 || Math.abs(v - c[i]) > 1e-7))) out.push(o);
+  });
+  return out;
+}
+
 // ---------------------------------------------------------------- knife-edge infographic (composited onto video frames)
 const INFO = { c: null, up: new V3() };
 let SLOW = { gate: 0.16, pop: 1 };   // slow-motion factors near the gate and during the knife-edge pop-up
@@ -2551,8 +2571,86 @@ window.__REC = {
       o.name = (g ? g.name : 'Part') + '_' + nameMat(o.material);
     });
     SENSOR.forEach(o => o.traverse(c => { if (c.isMesh) c.name = 'Sensor_' + c.name.replace(/^Body_/, ''); }));
+    // every part that moves gets a unique name, so animation exported from the sim (knifeAnim) maps onto the Blender
+    // objects one to one; named groups (Arm_i, Prop_i, Leg_i, ...) keep their names
+    MOVERS = findMovers();
+    const seen = new Set();
+    MOVERS.forEach((o, k) => {
+      const base = o.name.replace(/^Mv\d+_/, '');
+      if (!o.isMesh && base && !seen.has(base)) { o.name = base; seen.add(base); } else o.name = 'Mv' + k + '_' + (base || 'G');
+    });
     drone.root.updateMatrixWorld(true);
     return drone.root;
+  },
+  // knife-edge through gate C as an animation for Blender: the flight sampled at `fps` with eased slow motion
+  // (pop 0.45x, manoeuvre 0.12x), the root pose, the local transform of every moving part, prop angles that follow the
+  // signed rotor speed (stopping and reversing with it), and one continuous camera dolly beside the flight path
+  knifeAnim(fps = 30) {
+    this.exportPrep();
+    const restLocal = {}; MOVERS.forEach(o => { restLocal[o.name] = o.matrix.elements.slice(); });   // as exported to Blender
+    HEADLESS = true; freshPack(1);
+    const sm = mode, sl = level; mode = 'auto'; level = 2; buildWall(LEVELS[2]); resetRun();
+    const rec = [];
+    for (let k = 0; k < 240 * 16 && !S.crashed && AP.phase !== 'land'; k++) {
+      step();
+      rec.push({ t: S.t, p: S.p.toArray(), v: S.v.toArray(), q: S.q.toArray(), a: S.a, w: E.m.map(m => m.w), T: E.m.map(m => m.T), st: KN.state, ph: AP.phase });
+    }
+    const L = LEVELS[2], sOf = r => r.p[2] - WALL_Z;
+    const tPop = rec.find(r => r.st === 'idle' && r.ph === 'approach' && sOf(r) > 0 && sOf(r) / Math.max(-r.v[2], 0.5) < T_ROLL + T_POP).t;
+    const tRoll = rec.find(r => r.st === 'roll').t, tDone = rec.find(r => r.st === 'done').t;
+    const ss = (e0, e1, x) => { const u = clamp((x - e0) / (e1 - e0), 0, 1); return u * u * (3 - 2 * u); };
+    const rate = x => 1 - 0.55 * ss(tPop - 0.3, tPop, x) - 0.33 * ss(tRoll - 0.15, tRoll, x) + 0.88 * ss(tDone + 0.1, tDone + 0.8, x);
+    const at = (x) => {   // interpolated state at sim time x
+      let lo = 0, hi = rec.length - 1;
+      while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (rec[mid].t <= x) lo = mid; else hi = mid; }
+      const A = rec[lo], B = rec[hi], u = clamp((x - A.t) / (B.t - A.t || 1), 0, 1), lp = (a, b) => a.map((v, i) => lerp(v, b[i], u));
+      const q = new Q().fromArray(A.q).slerp(new Q().fromArray(B.q), u);
+      return { t: x, p: lp(A.p, B.p), v: lp(A.v, B.v), q: q.toArray(), a: lerp(A.a, B.a, u), w: lp(A.w, B.w), T: lp(A.T, B.T), st: u < 0.5 ? A.st : B.st, ph: u < 0.5 ? A.ph : B.ph };
+    };
+    const frames = []; let x = tPop - 0.6;
+    while (x < tDone + 1.6 && x < rec[rec.length - 1].t) { const st = at(x); st.dt = rate(x) / fps; frames.push(st); x += st.dt; }
+    // prop angles: follow the signed rotor speed but never more than ~0.6 rad a frame (no strobing), 0 when braked
+    const pa = [0, 0, 0, 0];
+    const root = [], local = {}; MOVERS.forEach(o => { local[o.name] = []; });
+    frames.forEach(f => {
+      drone.root.position.fromArray(f.p); drone.root.quaternion.fromArray(f.q); updateDroneShape(f.a);
+      drone.props.forEach((pr, i) => { const w = f.w[i]; pa[i] += ((i === 0 || i === 3) ? 1 : -1) * Math.sign(w) * 0.6 * Math.tanh(Math.abs(w) * f.dt / 0.6); pr.rotation.y = pa[i]; });
+      drone.root.updateMatrixWorld(true);
+      root.push(drone.root.matrix.elements.slice());
+      MOVERS.forEach(o => local[o.name].push(o.matrix.elements.slice()));
+    });
+    // camera: beside the flight on the deck side (-x), outside the wall's width so the wall never comes between,
+    // following a zero-lag smoothed copy of the drone's path
+    const P = frames.map(f => new V3().fromArray(f.p)), sm2 = P.map(v => v.clone());
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 1; i < sm2.length; i++) sm2[i].lerp(sm2[i - 1], 0.82);
+      for (let i = sm2.length - 2; i >= 0; i--) sm2[i].lerp(sm2[i + 1], 0.82);
+    }
+    const cam = sm2.map((c, i) => {
+      const u = i / (sm2.length - 1), side = lerp(-1.75, -2.05, u);
+      return { p: [L.gx + side, c.y + lerp(0.22, 0.42, u), c.z + lerp(0.55, 0.1, ss(0, 1, u))], t: [c.x, c.y - 0.02, c.z] };
+    });
+    // wires that run onto the arms bend as they fold: their geometry at KA fold angles, for shape keys in Blender
+    const dynC = drone.cables.filter(c => c.dyn), KA = 10, angs = [];
+    for (let k = 0; k < KA; k++) angs.push(lerp(GEO.aFold - 0.03, GEO.aOpen + 0.01, k / (KA - 1)));
+    const cables = [], pos = m => m.geometry.attributes.position;
+    dynC.forEach(c => { buildCable(c, GEO.aOpen); c.meshes.forEach(m => cables.push({ n: pos(m).count, first: Array.from(pos(m).array.slice(0, 3)), keys: [] })); });
+    angs.forEach(ang => { let q = 0; dynC.forEach(c => { buildCable(c, ang); c.meshes.forEach(m => { cables[q++].keys.push(Array.from(pos(m).array, v => Math.round(v * 1e5) / 1e5)); }); }); });
+    dynC.forEach(c => buildCable(c, GEO.aOpen)); lastWireA = GEO.aOpen;
+    ANIM.frames = frames;
+    mode = sm; level = sl;
+    return { fps, n: frames.length, fovV: 46, root, local, cam, restLocal, fold: frames.map(f => f.a), cables, cableAngles: angs,
+      gate: { gx: L.gx, gy: L.gy, w: L.w, h: L.h, wallZ: WALL_Z, wallT: WALL_T, wallW: WALL_W, wallH: WALL_H },
+      marks: { pop: frames.findIndex(f => f.t >= tPop), roll: frames.findIndex(f => f.t >= tRoll), done: frames.findIndex(f => f.t >= tDone) } };
+  },
+  // the infographic for frame i of the last knifeAnim, on a transparent canvas (PNG data URL)
+  knifeOverlay(i, w = 1080, h = 1920) {
+    const f = ANIM.frames[i];
+    level = 2; S.p.fromArray(f.p); S.v.fromArray(f.v); S.q.fromArray(f.q); KN.state = f.st; AP.phase = f.ph;
+    E.m.forEach((m, k) => { m.w = f.w[k]; m.T = f.T[k]; });
+    const c = INFO.oc || (INFO.oc = document.createElement('canvas')); c.width = w; c.height = h;
+    const g = c.getContext('2d'); g.clearRect(0, 0, w, h); drawKnifeInfo(g, w, h);
+    return c.toDataURL('image/png');
   },
 };
 

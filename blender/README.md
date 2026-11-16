@@ -12,4 +12,5 @@ Photoreal stills of Gannet SX-01 in Cycles. Built for Blender 2.93 LTS (runs on 
    `blender -b blender/slipstream_studio.blend --python blender/update_airframe.py` swaps the new airframe in and
    re-fits the parts, keeping your lights, cameras and other edits.
 5. `blender -b blender/slipstream_studio.blend --python blender/render_still.py -- Cam_hero out.png [--xray]`
+6. `python tools/knife_blender.py` renders the knife-edge through gate C as an animation (`render_knife.py`, Eevee)
    renders a still; `--xray` hides the shell to show the electronics.
