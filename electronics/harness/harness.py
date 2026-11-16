@@ -56,10 +56,10 @@ comp('HUB', 'Servo power board', '7.4 V 5 A BEC + four 3-pin servo headers', [70
 comp('BUCK', '12 V buck', 'Synchronous buck, 12 V 3 A, 500 kHz', [700, 120], rail='COMP 12 V',
      at=P(0, 0.0175, 0.052), size=P(0.024, 0.0016, 0.016))
 comp('CM4', 'Companion computer', 'Raspberry Pi CM4 on 12 V carrier board', [940, 120])
-comp('CAM', 'Depth camera', 'Stereo depth camera, USB-C', [1160, 60])
+comp('CAM', 'Depth camera', 'Compact stereo depth module, 50 mm, USB-C', [1160, 60])
 comp('FAN', 'Heatsink fan', '30 mm 5 V fan', [1160, 200])
 comp('GIMBAL', 'Gimbal camera', '2-axis brushless gimbal + 4K action camera, 12 V, serial control', [1300, 470],
-     at=P(0, -0.0195, -0.07))
+     at=P(0, -0.0255, -0.07))
 comp('RX', 'Receiver', '2.4 GHz serial receiver, dual antenna', [700, 600],
      at=P(-0.02, 0.0175, 0.128), size=P(0.016, 0.002, 0.012))
 for i, a in enumerate(ARMS):
@@ -110,10 +110,10 @@ cable('W30', 'ESC-FC harness', 'ESC', 'FC',
 
 # VBAT pigtails off the ESC pads: to the servo power board (front) and the 12 V buck (rear)
 cable('W31', 'VBAT to servo board', 'ESC', 'HUB', [('VBAT', 'red', 'BAT+', 'VIN'), ('GND', 'black', 'BAT-', 'GND')], 20,
-      [P(0.012, -0.0102, 0.019), P(0.034, -0.004, 0.012), P(0.05, 0.004, -0.005), P(0.05, PLATE, -0.016), P(0.034, PLATE, -0.032),
-       P(0.03, PLATE, -0.062), P(0.016, PLATE, -0.072)], design_A=5, conn='soldered / JST-XH 2-pin')
+      [P(0.012, -0.0102, 0.019), P(0.028, -0.004, 0.012), P(0.034, 0.004, -0.005), P(0.034, PLATE, -0.016), P(0.028, PLATE, -0.03),
+       P(0.026, PLATE, -0.058), P(0.016, PLATE, -0.072)], design_A=5, conn='soldered / JST-XH 2-pin')
 cable('W32', 'VBAT to 12 V buck', 'ESC', 'BUCK', [('VBAT', 'red', 'BAT+', 'VIN'), ('GND', 'black', 'BAT-', 'GND')], 20,
-      [P(-0.012, -0.0102, 0.019), P(-0.034, -0.004, 0.02), P(-0.05, 0.004, 0.016), P(-0.05, PLATE, 0.022), P(-0.032, PLATE, 0.04), P(-0.013, PLATE, 0.05)],
+      [P(-0.012, -0.0102, 0.019), P(-0.028, -0.004, 0.02), P(-0.034, 0.004, 0.016), P(-0.034, PLATE, 0.022), P(-0.026, PLATE, 0.04), P(-0.013, PLATE, 0.05)],
       design_A=3, conn='soldered / JST-XH 2-pin')
 cable('W33', '12 V to carrier', 'BUCK', 'CM4', [('COMP_12V', 'red', 'VOUT', '12V'), ('GND', 'black', 'GND', 'GND')], 22,
       [P(0.013, PLATE, 0.052), P(0.02, 0.019, 0.064), P(0.018, 0.0205, 0.074), P(0.018, 0.0213, 0.082)], design_A=2, conn='JST-PH 2-pin')
@@ -128,10 +128,10 @@ cable('W34', 'Servo signals', 'FC', 'HUB',
 for i, a in enumerate(ARMS):
     s, e = a['side'], a['end']; sp = servo_pose(a); lx, ly, lz = sp['lead']
     hx, hz = s * 0.0115, (-0.083 if e < 0 else -0.073)
-    if e < 0:
-        route = [sp['lead'], P(lx - s * 0.005, 0.028, lz + 0.006), P(s * 0.044, PLATE, -0.03), P(s * 0.03, PLATE, -0.048), P(s * 0.022, PLATE, -0.07), P(hx, 0.0195, hz)]
-    else:
-        route = [sp['lead'], P(lx - s * 0.005, 0.028, lz - 0.006), P(s * 0.044, PLATE, 0.03), P(s * 0.031, PLATE, 0.0), P(s * 0.03, PLATE, -0.045), P(s * 0.022, PLATE, -0.064), P(hx, 0.0195, hz)]
+    if e < 0:   # front servos: straight in to the board
+        route = [sp['lead'], P(lx - s * 0.006, 0.026, lz + 0.002), P(s * 0.03, PLATE, -0.056), P(s * 0.022, PLATE, -0.068), P(hx, 0.0195, hz)]
+    else:       # rear servos: forward in the gap between the battery and the front servo
+        route = [sp['lead'], P(lx - s * 0.006, 0.026, lz - 0.002), P(s * 0.026, PLATE, 0.036), P(s * 0.025, PLATE, 0.0), P(s * 0.025, PLATE, -0.05), P(s * 0.02, PLATE, -0.064), P(hx, 0.0195, hz)]
     cable('W4%d' % (i + 1), 'Servo %s lead' % a['name'], 'S%d' % (i + 1), 'HUB',
           [('GND', 'brown', 'GND', 'GND'), ('SERVO_7V4', 'red', 'V+', 'V+%d' % (i + 1)), ('SRV%d' % (i + 1), 'orange', 'SIG', 'SIG%d' % (i + 1))], 26, route,
           design_A=1.2, conn='servo lead / 3-pin 2.54 mm')
@@ -139,18 +139,18 @@ for i, a in enumerate(ARMS):
 # gimbal camera under the belly: 12 V from the buck, serial control from the FC; both go down through the right-hand
 # side slots of the plates and forward inside the belly pan
 cable('W70', 'Gimbal 12 V', 'BUCK', 'GIMBAL', [('COMP_12V', 'red', 'VOUT2', '12V'), ('GND', 'black', 'GND', 'GND')], 24,
-      [P(0.013, PLATE, 0.054), P(0.032, PLATE, 0.034), P(0.05, 0.012, 0.02), P(0.05, -0.004, 0.012), P(0.05, -0.0195, 0.0),
-       P(0.036, -0.0245, -0.03), P(0.014, -0.0225, -0.062)], design_A=0.45, conn='JST-PH 2-pin / gimbal board')
+      [P(0.013, PLATE, 0.054), P(0.028, PLATE, 0.036), P(0.034, 0.012, 0.02), P(0.034, -0.004, 0.012), P(0.034, -0.0195, 0.0),
+       P(0.03, -0.021, -0.03), P(0.014, -0.021, -0.058), P(0.014, -0.0265, -0.062)], design_A=0.45, conn='JST-PH 2-pin / gimbal board')
 cable('W71', 'Gimbal control', 'FC', 'GIMBAL', [('UART3_TX', 'yellow', 'TX3', 'RX'), ('UART3_RX', 'green', 'RX3', 'TX'), ('GND', 'black', 'GND', 'GND')], 30,
-      [P(0.016, -0.0012, -0.0135), P(0.032, -0.006, -0.022), P(0.05, -0.012, -0.02), P(0.05, -0.0195, -0.016),
-       P(0.034, -0.0245, -0.04), P(0.006, -0.0225, -0.062)], pitch=0.001, design_A=0.01, conn='JST-GH 4-pin / gimbal board')
+      [P(0.016, -0.0012, -0.0135), P(0.028, -0.006, -0.02), P(0.034, -0.012, -0.018), P(0.034, -0.0195, -0.016),
+       P(0.028, -0.021, -0.04), P(0.006, -0.021, -0.058), P(0.006, -0.0265, -0.062)], pitch=0.001, design_A=0.01, conn='JST-GH 4-pin / gimbal board')
 
 # companion computer: UART to the FC (down through the rear-left window), USB-C from the depth camera, fan
 cable('W50', 'CM4-FC telemetry UART', 'CM4', 'FC', [('UART1_TX', 'yellow', 'TX', 'RX1'), ('UART1_RX', 'green', 'RX', 'TX1'), ('GND', 'black', 'GND', 'GND')], 30,
       [P(-0.022, 0.0213, 0.108), P(-0.024, 0.017, 0.116), P(-0.024, 0.009, 0.115), P(-0.016, 0.004, 0.08), P(-0.012, 0.002, 0.04), P(-0.012, -0.0012, 0.0165)],
       pitch=0.001, design_A=0.01, conn='JST-GH 4-pin / 40-pin header')
 cable('W51', 'Depth camera USB-C', 'CAM', 'CM4', [('USB3', 'black', 'USB-C', 'USB')], 22,
-      [P(0.03, 0.033, -0.111), P(0.036, 0.028, -0.09), P(0.03, 0.026, 0.0), P(0.022, 0.0258, 0.078)], pitch=0.0036, design_A=0.9, conn='USB-C both ends')
+      [P(0.026, 0.0325, -0.118), P(0.031, 0.029, -0.1), P(0.03, 0.027, -0.03), P(0.03, 0.026, 0.0), P(0.022, 0.0258, 0.078)], pitch=0.0036, design_A=0.9, conn='USB-C both ends')
 cable('W52', 'Fan', 'CM4', 'FAN', [('FAN_5V', 'red', 'FAN+', '+'), ('GND', 'black', 'GND', '-')], 30,
       [P(0.03, 0.0245, 0.104), P(0.026, 0.031, 0.11), P(0.012, 0.0386, 0.11)], design_A=0.1, conn='JST-SH 2-pin')
 
