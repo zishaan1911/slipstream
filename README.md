@@ -2,7 +2,7 @@
 
 **SX-01 morphing quadrotor · narrow-gap traversal · Seventh Axis Aerial Robotics**
 
-SlipStream is a browser-based simulation of SX-01, a 1.25 kg research quadrotor whose arms fold on servos
+SlipStream is a browser-based simulation of SX-01, a 1.46 kg research quadrotor whose arms fold on servos
 so it can squeeze through gaps narrower than its own span, and roll knife-edge through slots narrower
 than its folded width.
 
@@ -39,11 +39,23 @@ Then open <http://localhost:8000/slipstream.html>.
 - **Battery:** start a fresh pack at 100, 50 or 20 % charge; toggle battery-voltage compensation.
 - **Chassis:** white shell, X-ray, or bare airframe.
 
+## Airframe
+
+- Moulded white canopy over the top plate and a belly pan under the bottom plate; the gap between the plates
+  stays open for the arm hinges and the fold linkage.
+- Each arm carries a moulded shell ending in a motor pod (nav LED in its base) and folds 45° to 9° through a
+  servo horn + pushrod linkage (`electronics/linkage/design_linkage.py`).
+- Four tall landing legs retract with the fold, with no extra actuator: a rod from a bracket under the body
+  pitches each leg flat under its arm as the arm swings in (`electronics/linkage/design_legs.py`).
+- 2-axis gimbal camera under the belly, on 12 V from the compute buck and serial control from the FC.
+- Every conductor comes from one parts list and netlist (`electronics/harness/`), which also draws the wiring diagram.
+- Propulsion constants and all-up mass live in `electronics/motor.json` (2807 1300 KV, 7" tri-blade, 1.46 kg).
+
 ## Flight and power model
 
 - Rigid-body flight with cascaded position / attitude control and fold-aware gain scheduling.
 - 4S 2200 mAh LiPo per cell: open-circuit voltage curve, ohmic + RC polarisation, coulomb counting, heating.
-- Four ESCs with current limit, duty ramp and active braking, driving 1100 KV motors with a DC-equivalent
+- Four ESCs with current limit, duty ramp and active braking, driving 2807 1300 KV motors with a DC-equivalent
   model fitted from the SPICE switching simulation.
 - 7.4 V servo, 12 V compute and 5 V flight-controller rails; the 12 V rail browns out on deep sag and the
   autopilot performs a failsafe landing.

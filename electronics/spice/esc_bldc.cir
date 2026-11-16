@@ -1,13 +1,14 @@
 * SX-01 ESC power stage: 3-phase MOSFET bridge, six-step commutation with complementary PWM and
-* 15 deg timing advance, driving one 1100 KV / 14-pole BLDC (trapezoidal back-EMF) at a fixed rotor speed.
+* 15 deg timing advance, driving one BLDC (trapezoidal back-EMF) at a fixed rotor speed. Motor constants
+* (ke, rph, lph, pp) are passed in by run_all.py from electronics/motor.json; the defaults here are the 2807 1300 KV.
 .param vbus=15.8
 .param duty=0.61
 .param wm=1087
 .param pp=7
-.param ke=8.68m
+.param ke=7.346m
 .param fpwm=48k
-.param rph=30m
-.param lph=12u
+.param rph=20m
+.param lph=9.4u
 .param adv=0.25
 .param te={6.283185307/(wm*pp)}
 .param tp={1/fpwm}

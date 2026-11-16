@@ -2,6 +2,8 @@
 * t < 1 ms: hover.  1.0-1.6 ms: take-off / knife-edge pop surge ramps every ESC to its 45 A phase-current limit.
 .param vocv=16.40
 .param cbulk=1000u
+.param iph0=6.4
+.param d0=0.61
 .param fpwm=48k
 .param tp={1/fpwm}
 
@@ -27,8 +29,8 @@ Rcesr nc1 0 2m
 Irail bus 0 1.6
 
 * --- per-ESC phase-current envelope and duty (hover -> surge)
-.func iph(t) { t<1m ? 6.4 : (t<1.6m ? 6.4+(t-1m)/0.6m*(45-6.4) : 45) }
-.func dty(t) { t<1m ? 0.61 : (t<1.6m ? 0.61+(t-1m)/0.6m*(0.97-0.61) : 0.97) }
+.func iph(t) { t<1m ? iph0 : (t<1.6m ? iph0+(t-1m)/0.6m*(45-iph0) : 45) }
+.func dty(t) { t<1m ? d0 : (t<1.6m ? d0+(t-1m)/0.6m*(0.97-d0) : 0.97) }
 .func pw(t,ph) { (t+ph*tp/4 - floor((t+ph*tp/4)/tp)*tp) < dty(t)*tp ? 1 : 0 }
 
 * each ESC pulls its phase current from the bus only while its high-side switch conducts;

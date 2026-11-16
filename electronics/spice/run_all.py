@@ -20,6 +20,14 @@ plt.rcParams.update({
     'legend.frameon': False, 'legend.fontsize': 8,
 })
 R = {}
+MOT = json.load(open(os.path.join(HERE, '..', 'motor.json')))
+KE = 60 / (2 * math.pi * MOT['kv']); KT_P, KQ_P, I0 = MOT['kT'], MOT['kQ'], MOT['i0']; PP = MOT['pole_pairs']
+W_H = math.sqrt(MOT['all_up_mass_kg'] * 9.81 / 4 / KT_P)                    # hover rotor speed
+W_POP = math.sqrt(MOT['all_up_mass_kg'] * 9.81 * MOT['pop_g'] / 4 / KT_P)   # knife-edge pop-up rotor speed
+MP = dict(ke=KE, rph=MOT['rph'], lph=MOT['lph'], pp=PP)                     # motor parameters for esc_bldc.cir
+I_PH_H = KQ_P * W_H ** 2 / KE + I0                                          # hover phase current (flight-model estimate)
+D_H0 = (KE * W_H + 2 * MOT['rph'] * I_PH_H) / MOT['v_hover']                # and the duty it needs
+rpm = lambda w: w * 60 / (2 * math.pi)
 
 
 def save(fig, name):
@@ -33,7 +41,7 @@ def battery_bus():
              ('low_nocap', 14.76, '1u', '20 % pack, bulk capacitor removed')]
     out, waves = {}, {}
     for key, v, c, label in cases:
-        m, w = spice.run('battery_bus.cir', 'bus_' + key, {'vocv': v, 'cbulk': c})
+        m, w = spice.run('battery_bus.cir', 'bus_' + key, {'vocv': v, 'cbulk': c, 'iph0': round(I_PH_H, 2), 'd0': round(D_H0, 3)})
         out[key] = dict(m, label=label, vocv=v); waves[key] = w
     R['battery_bus'] = out
     fig, ax = plt.subplots(2, 1, figsize=(7.2, 4.6), sharex=True, gridspec_kw={'height_ratios': [1.3, 1]})
@@ -57,39 +65,40 @@ def battery_bus():
 
 
 # --------------------------------------------------------------- 2. ESC + BLDC power stage
-P_TARGET = 0.0491 * 1087 + 8.68e-3 * 0.7 * 1087   # prop torque at hover x speed + friction (from the flight model)
+P_TARGET = KQ_P * W_H ** 3 + KE * I0 * W_H   # prop torque at hover x speed + friction (from the flight model)
 
 def esc():
-    wm = 1087; te = 2 * math.pi / (wm * 7)
+    wm = W_H; te = 2 * math.pi / (wm * PP)
     sweep = []
-    for d in [0.60, 0.62, 0.64, 0.66, 0.68, 0.70]:
-        m, _ = spice.run('esc_bldc.cir', f'esc_d{int(d*100)}', {'duty': d}, {'TW': 3e-3 - te})
+    for d in [round(D_H0 - 0.02 + 0.02 * k, 3) for k in range(7)]:
+        m, _ = spice.run('esc_bldc.cir', f'esc_d{int(d*1000)}', dict(MP, duty=d, wm=wm), {'TW': 3e-3 - te})
         sweep.append(dict(duty=d, **m))
     # interpolate the duty that delivers the hover power
     ds = np.array([s['duty'] for s in sweep]); ps = np.array([s['pmech'] for s in sweep])
     d_h = float(np.interp(P_TARGET, ps, ds))
-    m, w = spice.run('esc_bldc.cir', 'esc_hover', {'duty': round(d_h, 4)}, {'TW': 3e-3 - te})
+    m, w = spice.run('esc_bldc.cir', 'esc_hover', dict(MP, duty=round(d_h, 4), wm=wm), {'TW': 3e-3 - te})
     pin = -m['ibus'] * 15.8
     hover = dict(m, duty=d_h, pin=pin, eff=m['pmech'] / pin, p_target=P_TARGET)
-    # aggressive point: knife-edge pop-up needs ~5.4 N per rotor = 1436 rad/s, on a sagged bus at near-full duty
-    wm2 = 1436; te2 = 2 * math.pi / (wm2 * 7)
-    m2, w2 = spice.run('esc_bldc.cir', 'esc_pop', {'duty': 0.98, 'wm': wm2, 'vbus': 14.2}, {'TW': 3e-3 - te2})
+    # aggressive point: the knife-edge pop-up, on a sagged bus at near-full duty
+    wm2 = W_POP; te2 = 2 * math.pi / (wm2 * PP)
+    m2, w2 = spice.run('esc_bldc.cir', 'esc_pop', dict(MP, duty=0.98, wm=wm2, vbus=MOT['v_pop']), {'TW': 3e-3 - te2})
     pop = dict(m2, duty=0.98, wm=wm2, vbus=14.2, pin=-m2['ibus'] * 14.2, eff=m2['pmech'] / (-m2['ibus'] * 14.2),
-               p_need=0.0416e-6 * wm2 ** 3 + 8.68e-3 * 0.7 * wm2)
+               p_need=KQ_P * wm2 ** 3 + KE * I0 * wm2)
     # DC-equivalent motor for the flight model: I = (d*Vbus - Ke_eff*w) / R_eff(w), fitted from two duties per speed
     fit = []
-    for wf, dd in [(700, (0.42, 0.46)), (1087, (0.62, 0.66)), (1450, (0.86, 0.90))]:
-        tf = 2 * math.pi / (wf * 7); P = []
+    for wf in (0.65 * W_H, W_H, 1.25 * W_H):
+        d0 = KE * wf / 15.8 + 0.03; dd = (round(d0, 3), round(d0 + 0.04, 3))
+        tf = 2 * math.pi / (wf * PP); P = []
         for d in dd:
-            mm, _ = spice.run('esc_bldc.cir', f'fit_{wf}_{int(d*100)}', {'duty': d, 'wm': wf}, {'TW': 3e-3 - tf}); P.append(mm['pmech'])
+            mm, _ = spice.run('esc_bldc.cir', f'fit_{int(wf)}_{int(d*1000)}', dict(MP, duty=d, wm=wf), {'TW': 3e-3 - tf}); P.append(mm['pmech'])
         slope = (P[1] - P[0]) / (dd[1] - dd[0])
-        fit.append(dict(wm=wf, reff=8.68e-3 * wf * 15.8 / slope, keff=(dd[0] - P[0] / slope) * 15.8 / wf, p=P))
+        fit.append(dict(wm=wf, reff=KE * wf * 15.8 / slope, keff=(dd[0] - P[0] / slope) * 15.8 / wf, p=P))
     W = np.array([f['wm'] for f in fit]); Rf = np.array([f['reff'] for f in fit])
     k1, k0 = np.polyfit(W, Rf, 1)
     ke_eff = float(np.mean([f['keff'] for f in fit]))
     R['esc'] = dict(sweep=sweep, hover=hover, pop=pop, fit=fit, reff0=float(k0), reff1=float(k1), ke_eff=ke_eff)
-    for name, ww, tw, title in [('esc_hover', w, te, f'Hover: 1087 rad/s (10.4k rpm), duty {d_h*100:.1f} %, 15.8 V bus'),
-                                 ('esc_pop', w2, te2, 'Knife-edge pop-up: 1436 rad/s (13.7k rpm), duty 98 %, sagged 14.2 V bus')]:
+    for name, ww, tw, title in [('esc_hover', w, te, f'Hover: {W_H:.0f} rad/s ({rpm(W_H)/1000:.1f}k rpm), duty {d_h*100:.1f} %, 15.8 V bus'),
+                                 ('esc_pop', w2, te2, f'Knife-edge pop-up: {W_POP:.0f} rad/s ({rpm(W_POP)/1000:.1f}k rpm), duty 98 %, sagged 14.2 V bus')]:
         t = ww['time']; s = t > (3e-3 - 2 * tw)
         tt = (t[s] - t[s][0]) * 1e3
         fig, ax = plt.subplots(3, 1, figsize=(7.2, 5.2), sharex=True, gridspec_kw={'height_ratios': [1.2, 1.2, 0.5]})

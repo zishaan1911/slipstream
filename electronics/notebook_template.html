@@ -80,7 +80,7 @@ pre{margin:0;background:var(--paper);border:1px solid var(--hair);border-radius:
   <div class="tbl"><table>
     <thead><tr><th>Quantity</th><th>Flight model</th><th>SPICE</th><th>Result</th></tr></thead>
     <tbody>
-      <tr><td>ESC duty at hover (10.4k rpm, 15.8 V)</td><td class="n">$d_model <span class="u">%</span></td><td class="n">$d_spice <span class="u">%</span></td><td><span class="verdict $c_duty">$t_duty</span></td></tr>
+      <tr><td>ESC duty at hover ($rpm_h rpm, 15.8 V)</td><td class="n">$d_model <span class="u">%</span></td><td class="n">$d_spice <span class="u">%</span></td><td><span class="verdict $c_duty">$t_duty</span></td></tr>
       <tr><td>Bus current per ESC at hover</td><td class="n">$ibus_model <span class="u">A</span></td><td class="n">$ibus_spice <span class="u">A</span></td><td><span class="verdict $c_ibus">$t_ibus</span></td></tr>
       <tr><td>ESC + motor-copper efficiency at hover</td><td class="n">$eff_model <span class="u">%</span></td><td class="n">$eff_spice <span class="u">%</span></td><td><span class="verdict $c_eff">$t_eff</span></td></tr>
       <tr><td>Pack current at hover, all loads</td><td class="n">$pack_model <span class="u">A</span></td><td class="n">$pack_spice <span class="u">A</span></td><td><span class="verdict $c_pack">$t_pack</span></td></tr>
@@ -114,16 +114,16 @@ pre{margin:0;background:var(--paper);border:1px solid var(--hair);border-radius:
 <section>
   <div class="sec-head"><h2>ESC power stage and motor</h2><span class="file">esc_bldc.cir</span></div>
   <figure class="sch"><div id="s2"></div><figcaption>Three MOSFET half-bridges (3 mΩ on-resistance plus body diodes) with six-step commutation, complementary 48 kHz PWM and 15° timing advance, driving a star-connected BLDC: 30 mΩ and 12 µH per phase and a trapezoidal back-EMF of K<sub>e</sub>·ω/2 per phase. Rotor speed is held fixed so the electrical steady state can be measured directly.</figcaption></figure>
-  <figure><img src="plots/esc_sweep.png" alt="Shaft power versus ESC duty at hover speed"><figcaption>Shaft power versus duty at 1087 rad/s. The hover set-point is where it meets the propeller load from the flight model ($pmech W).</figcaption></figure>
+  <figure><img src="plots/esc_sweep.png" alt="Shaft power versus ESC duty at hover speed"><figcaption>Shaft power versus duty at $w_h rad/s. The hover set-point is where it meets the propeller load from the flight model ($pmech W).</figcaption></figure>
   <div class="two">
     <figure><img src="plots/esc_hover.png" alt="Hover phase voltage and three phase currents over two electrical periods"><figcaption>Hover: phase A terminal voltage, star point and the three phase currents.</figcaption></figure>
-    <figure><img src="plots/esc_pop.png" alt="High-load phase voltage and currents during the knife-edge pop-up"><figcaption>Knife-edge pop-up: 13.7k rpm, 98 % duty on a sagged 14.2 V bus.</figcaption></figure>
+    <figure><img src="plots/esc_pop.png" alt="High-load phase voltage and currents during the knife-edge pop-up"><figcaption>Knife-edge pop-up: $rpm_pop rpm, 98 % duty on a sagged 14.2 V bus.</figcaption></figure>
   </div>
   <ul class="find">
-    <li><b>Bus current at hover matches; the duty needed does not.</b> SPICE draws $ibus_spice A from the bus against the model's $ibus_model A, but needs $d_spice % duty where the model expected $d_model %. Without timing advance the gap is far larger: at 10.4k rpm only about 0.4 V is left after back-EMF, and the winding inductance cannot build current within one 137 µs commutation step.</li>
+    <li><b>Bus current at hover matches; the duty needed does not.</b> SPICE draws $ibus_spice A from the bus against the model's $ibus_model A, but needs $d_spice % duty where the model expected $d_model %. Without timing advance the gap is far larger: at $rpm_h rpm little voltage is left after back-EMF, and the winding inductance cannot build current within one commutation step.</li>
     <li><b>Duty is a steep control input.</b> Back-EMF cancels most of the applied voltage, so one percent of duty moves shaft power by roughly ten watts. That is why the flight controller needs rotor-speed feedback and battery-voltage compensation.</li>
     <li><b>Ripple is large.</b> Each phase carries $iph_rms A rms at hover with $iph_pp A pk-pk ripple at 48 kHz, so motor iron and copper see far more than the average current suggests.</li>
-    <li><b>The knife-edge pop-up is right at the limit.</b> It needs about $pop_need W per rotor at 13.7k rpm. At 98 % duty on a sagged 14.2 V bus one ESC delivers $pop_pm W ($pop_ibus A from the bus, $pop_eff % efficient), so the manoeuvre only works while the pack can hold its voltage.</li>
+    <li><b>The knife-edge pop-up is right at the limit.</b> It needs about $pop_need W per rotor at $rpm_pop rpm. At 98 % duty on a sagged 14.2 V bus one ESC delivers $pop_pm W ($pop_ibus A from the bus, $pop_eff % efficient), so the manoeuvre only works while the pack can hold its voltage.</li>
   </ul>
   <div class="tbl"><table>
     <thead><tr><th>Rotor speed [rad/s]</th><th>[rpm]</th><th>R_eff [mΩ]</th><th>Ke_eff [mV·s/rad]</th></tr></thead>
@@ -258,7 +258,7 @@ python build_notebook.py</pre>
   b.wire([260, 148], [525, 148], [525, 100], [552, 100]);
   b.wire([360, 155], [552, 155]);
   b.wire([460, 162], [539, 162], [539, 215], [552, 215]);
-  b.group(532, 52, 252, 196, 'BLDC · 1100 KV · 14 poles · star');
+  b.group(532, 52, 252, 196, 'BLDC · $kv KV · 14 poles · star');
   [[100, 'A'], [155, 'B'], [215, 'C']].forEach(function (p) {
     var y = p[0]; b.part('R', 552, y, 602, y, '30 mΩ', 'a').part('L', 602, y, 662, y, '12 µH', 'a').part('E', 662, y, 722, y, 'e' + p[1], 'a').wire([722, y], [752, y]);
   });

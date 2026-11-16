@@ -6,9 +6,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 R = json.load(open(os.path.join(HERE, 'spice', 'results.json')))
 
 # --- flight-model (SlipStream) equations, same constants as the browser sim
-Kv, Rm, I0, kT, kQ, Rds = 1100, 0.06, 0.7, 2.6e-6, 4.16e-8, 0.004
+MOT = json.load(open(os.path.join(HERE, 'motor.json')))
+Kv, Rm, I0, kT, kQ, Rds = MOT['kv'], MOT['rm_phase_to_phase'], MOT['i0'], MOT['kT'], MOT['kQ'], 0.004
 Ke = 60 / (2 * math.pi * Kv); Kt = Ke
-w_h = 1087.0; V_h = 15.8
+w_h = math.sqrt(MOT['all_up_mass_kg'] * 9.81 / 4 / kT); V_h = 15.8
+w_pop = math.sqrt(MOT['all_up_mass_kg'] * 9.81 * MOT['pop_g'] / 4 / kT)
+rpmk = lambda w: '%.1fk' % (w * 60 / (2 * math.pi) / 1000)
 iss = kQ * w_h ** 2 / Kt + I0
 d_model = (Ke * w_h + Rm * iss) / V_h
 ibus_model = d_model * iss + (iss ** 2 * Rds + 0.15 * iss) / V_h
@@ -57,7 +60,7 @@ v = dict(
     vin_brown=f(buck.get('vin_at_brown')), vin_drop=f(buck.get('vin_at_drop')),
     vout_reg=f(buck.get('vout_reg'), 3), vstep=f(buck.get('vout_step_min'), 3),
     vrip=f((buck.get('vout_ripple') or 0) * 1000, 0), ilrip=f(buck.get('il_ripple')),
-    reff_model='60', reff_spice=f(reff_h * 1000, 0), r0=f(r0 * 1000, 0), r1=f(r1 * 1e6, 1), ke_eff=f(kee * 1000, 2),
+    reff_model='%.0f' % (Rm * 1000), kv=Kv, motor=MOT['motor'], mass='%.2f' % MOT['all_up_mass_kg'], w_h='%.0f' % w_h, rpm_h=rpmk(w_h), rpm_pop=rpmk(w_pop), reff_spice=f(reff_h * 1000, 0), r0=f(r0 * 1000, 0), r1=f(r1 * 1e6, 1), ke_eff=f(kee * 1000, 2),
     tmax_before=f(tmax(15.5, Rm, 0, Ke)), tmax_after=f(tmax(15.5, r0, r1, kee)),
     reff_fit_rows=fit_rows,
 )
