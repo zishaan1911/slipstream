@@ -5,3 +5,9 @@ electronics/spice/esc_fit.json
 renders/frames/
 renders/test*.jpg
 renders/t_*.jpg
+blender/*.blend
+blender/*.blend1
+blender/assets/
+blender/sx01.glb
+blender/t_*.png
+blender/test.png
