@@ -99,17 +99,26 @@ for i in range(4):
     place(motor, C, mg, (0, 0, 0), name='Motor_%d_detailed' % i)
     place(prop, C, pg, (0, 0, 0.002), rot_z=i * 0.7, mirror=i in (1, 2), name='Prop_%d_detailed' % i)
 
-# ---------------------------------------------------------------- fold servos (SG90, mm units, Z up, long axis X)
+# ---------------------------------------------------------------- fold servos: SG90 (mm, Z up, long axis X, output shaft at x = -4.73)
+# Mounted upside down through the top-plate cut-out, as in the airframe: tab underside (z 18.4 in the source) on the
+# plate, case above, gear tower and spline below. The source's own horn is dropped; the airframe's horn, pushrod and
+# arm stud are the real linkage and stay.
+import bmesh
 servo = import_part('servo')
-servo.data.transform(Matrix.Scale(0.001, 4)); servo.data.transform(Matrix.Rotation(math.pi / 2, 4, 'Z'))
+bm = bmesh.new(); bm.from_mesh(servo.data)
+bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.z > 27.35], context='VERTS'); bm.to_mesh(servo.data); bm.free()
+servo.data.transform(Matrix.Translation((4.73, 0, 0)))
+servo.data.transform(Matrix.Rotation(math.pi, 4, 'X'))
+servo.data.transform(Matrix.Translation((0, 0, 18.4)))
+servo.data.transform(Matrix.Scale(0.001, 4))
 blk = bpy.data.materials.new('servo_plastic'); blk.use_nodes = True
 b = blk.node_tree.nodes['Principled BSDF']; b.inputs['Base Color'].default_value = (0.012, 0.012, 0.014, 1); b.inputs['Roughness'].default_value = 0.42
 servo.data.materials.clear(); servo.data.materials.append(blk); to_lib(servo)
-boxes = find('Body_plastic', (0.0125, 0.0235, 0.022))
-for k, (o, lo, hi) in enumerate(boxes):
-    place(servo, C, body, ((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, lo.z), name='Servo_%d_detailed' % k)
-hide([o for o, _, _ in boxes]); hide([o for o, _, _ in find('Body_plastic', (0.0125, 0.033, 0.002))])
-hide([o for o, _, _ in find('Body_label', (0.0, 0.0115, 0.02), sort=True)])
+for i in range(4):
+    sv = bpy.data.objects.get('Servo_%d' % i)
+    if not sv: continue
+    hide([o for o in bpy.data.objects if o.type == 'MESH' and o.parent == sv and o.name.startswith('Servo_%d_' % i)])
+    place(servo, C, sv, (0, 0, 0.016), name='Servo_%d_detailed' % i)
 
 # ---------------------------------------------------------------- LiPo (stands on end in the source; lay it flat, leads to the rear)
 lipo = import_part('lipo', keep=lambda o: not any(k in o.name.lower() for k in ('floor', 'xt60', 'xst')))  # airframe has its own leads
@@ -138,9 +147,10 @@ if mod and carrier:
     place(cm4, C, body, ((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, chi.z + 0.0004), name='CM4_detailed')
     hide([o]); hide([x for x, _, _ in find('Body_blackAl', (0.044, 0.032, 0.003))]); hide([x for x, _, _ in find('Body_blackAl', (0.0011, 0.032, 0.007))])
     hide([x for x, _, _ in find('Body_plastic', (0.0278, 0.0278, 0.0028), tol=0.002)])
-    hide([o for o in bpy.data.objects if o.name.startswith('Fan_')])
+    hide([o for o in bpy.data.objects if o.name.startswith('Fan_') or o.name.startswith('Wire_W52')])  # fan and its lead go with the heatsink
 
 print('parts:', sorted(o.name for o in C.objects))
-bpy.ops.file.pack_all()
-bpy.ops.wm.save_mainfile(compress=True)
-print('saved', bpy.data.filepath)
+if __name__ == '__main__':
+    bpy.ops.file.pack_all()
+    bpy.ops.wm.save_mainfile(compress=True)
+    print('saved', bpy.data.filepath)

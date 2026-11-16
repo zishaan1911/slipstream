@@ -14,6 +14,9 @@ than its folded width.
 |---|---|
 | `slipstream.html` | The simulator: flight arena, SX-01 airframe, physics, autopilot, experiment console |
 | `electronics/spice/` | ngspice models of the power chain: pack and bus, ESC bridge + BLDC, 12 V buck rail |
+| `electronics/linkage/` | fold linkage synthesis: servo horn, pushrod and arm lever geometry, transmission angle, torque check |
+| `electronics/harness/` | wiring harness parts list + netlist that builds the 3D harness and the wiring diagram (`harness.html`) |
+| `blender/` | Cycles studio scene for photoreal stills, fed by the exported airframe |
 | `electronics/notebook.html` | Engineering notebook: schematics, waveforms, SPICE vs. flight-model comparison |
 | `electronics/build_notebook.py` | Fills the notebook from `spice/results.json` |
 | `electronics/apply_feedback.py` | Copies SPICE-fitted constants into the simulator |
