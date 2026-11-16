@@ -16,3 +16,20 @@ and the battery's own leads are left out. Credit the authors wherever renders th
 Suggested caption credit: *Motor by chiwei, servo by IQuanix, LiPo by 3dArenaRaj, prop by The Van, CM4 by Vacui (Sketchfab, CC BY 4.0).*
 
 The `.glb` files go in `blender/assets/` (not committed; download them from the links above while signed in).
+
+# Surface textures
+
+`materials.py` builds the Cycles materials from these [ambientCG](https://ambientcg.com) scans, all
+[CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (public domain, no credit required; credited here anyway).
+They are box-projected in object space at their real-world scale, so the parts need no UVs.
+
+| Used for | Set |
+|---|---|
+| Carbon plates (weave) | [Fabric004](https://ambientcg.com/view?id=Fabric004) |
+| Linear-brushed metal: aluminium, anodised legs and gimbal | [Metal009](https://ambientcg.com/view?id=Metal009) |
+| Circular-brushed metal: orange motor rings, copper | [Metal051A](https://ambientcg.com/view?id=Metal051A) |
+| Rubber feet, TPU | [Rubber004](https://ambientcg.com/view?id=Rubber004) |
+| Moulded plastic, PCBs, wire jackets | [Plastic006](https://ambientcg.com/view?id=Plastic006) |
+| Ceramic-white shell (micro-texture under the clear coat), servo horns | [Plastic010](https://ambientcg.com/view?id=Plastic010) |
+
+Download the 1K-JPG zips and unpack each into `blender/assets/ambientcg/<id>/` (not committed).

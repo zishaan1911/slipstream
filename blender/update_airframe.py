@@ -24,6 +24,8 @@ for block in (bpy.data.meshes, bpy.data.materials, bpy.data.images):  # drop wha
 airframe.import_airframe(os.path.join(HERE, 'sx01.glb'), 1.0, matrix)
 bpy.context.view_layer.update()  # add_parts measures parts in the body's frame: matrices must be current
 import add_parts  # noqa: E402  (fits the detailed parts on import)
+import materials  # noqa: E402
+materials.apply()   # realistic scan-based materials + bevelled edges
 
 bpy.ops.file.pack_all()
 bpy.ops.wm.save_mainfile(compress=True)
