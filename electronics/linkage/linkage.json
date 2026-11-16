@@ -9,7 +9,7 @@
     0.058,
     -0.06
   ],
-  "servo_yaw_deg": 60.0,
+  "servo_yaw_deg": 150.0,
   "horn_r": 0.005999999999999999,
   "rod_len": 0.01555,
   "sweep_deg": 60.4,

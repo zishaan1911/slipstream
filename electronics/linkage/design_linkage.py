@@ -12,8 +12,10 @@ keeps the servo sweep inside 60..90 deg, subject to packaging: the servo body mu
 of the depth camera, the battery and the marker pole, and the rod must clear the hinge pin and standoffs.
 Writes linkage.json, which the airframe model reads.
 """
-import json, math, os
+import json, math, os, sys
 import numpy as np
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import plate
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 D = math.radians
@@ -30,20 +32,22 @@ def rot(v, t):
 # servo: SG90 form factor, mounted inverted; body 22.8 x 12.4 mm, mounting tabs 32.3 mm, shaft 5.9 mm from the
 # body centre along the long axis. Footprint on the top plate (tabs included), in servo axes (u long, v short).
 BODY = (0.0323, 0.0124); SHAFT_OFF = 0.0059
-PLATE = [(-0.035, -0.135), (0.035, -0.135), (0.08, -0.09), (0.08, 0.09), (0.035, 0.135), (-0.035, 0.135), (-0.08, 0.09), (-0.08, -0.09)]
+PLATE = plate.outline(80)   # narrow spine + hinge lobes (tight packaging for the unibody shell)
 KEEP_OUT_TOP = [  # (xmin, xmax, zmin, zmax) above the top plate
-    (-0.047, 0.047, -0.140, -0.108),       # depth camera and its mount
+    (-0.027, 0.027, -0.142, -0.110),       # compact depth camera and its mount
     (-0.021, 0.021, -0.045, 0.035),        # battery + straps
-    (0.056, 0.064, -0.090, -0.082),        # mocap marker pole
+    (-0.017, 0.017, -0.092, -0.064),       # servo power board
+    (-0.034, 0.034, 0.074, 0.124),         # CM4 carrier
 ]
-POSTS = [((0.066, 0.0), 0.0028), ((0.02, -0.02), 0.0028), ((0.03, -0.11), 0.0028), (tuple(H), 0.0045)]
+POSTS = [((0.04, 0.0), 0.0028), ((0.02, -0.02), 0.0028), ((0.03, -0.11), 0.0028), (tuple(H), 0.0045)]
 
-def inside_plate(p):
-    x, z = p; n = len(PLATE); ok = True
+def inside_plate(p, margin=0.002):
+    x, z = p; inside = False; n = len(PLATE)
     for i in range(n):
         (x1, z1), (x2, z2) = PLATE[i], PLATE[(i + 1) % n]
-        if (x2 - x1) * (z - z1) - (z2 - z1) * (x - x1) < 0.003 * math.hypot(x2 - x1, z2 - z1): ok = False
-    return ok
+        if (z1 > z) != (z2 > z) and x < (x2 - x1) * (z - z1) / (z2 - z1) + x1: inside = not inside
+    if not inside: return False
+    return abs(x) <= plate.half_width(z) - margin
 
 def footprint(S, g):
     u, v = np.array([math.cos(g), math.sin(g)]), np.array([-math.sin(g), math.cos(g)])
@@ -90,7 +94,7 @@ def evaluate(rl, psi, S, rh):
 
 # packaging first: shaft positions where some servo yaw fits on the plate (yaw does not affect the kinematics)
 FEAS = []
-for sx in np.arange(0.028, 0.072, 0.002):
+for sx in np.arange(0.022, 0.07, 0.002):
     for sz in np.arange(-0.108, -0.030, 0.002):
         S = np.array([sx, sz])
         if np.linalg.norm(S - H) < 0.012: continue

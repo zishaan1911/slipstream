@@ -9,8 +9,10 @@ Arm-local frame (as the airframe model): x across the arm, y up, z along the arm
 on the hinge axis. Leg pitch psi = 0 hangs straight down; positive swings the foot outboard.
 Writes legs.json, which the harness data (and so the airframe model) reads.
 """
-import json, math, os
+import json, math, os, sys
 import numpy as np
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import plate
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 D = math.radians
@@ -63,10 +65,11 @@ def evaluate(rh, dl, B, full=True):
 best = None
 for rh in (0.008, 0.011, 0.014):
     for dl in np.radians(np.arange(-180, 180, 20)):
-        for bx in np.arange(0.035, 0.076, 0.008):
+        for bx in np.arange(0.026, 0.05, 0.004):
             for by in (-0.03, -0.022):
                 for bz in np.arange(-0.115, -0.025, 0.008):
                     B = np.array([bx, by, bz])
+                    if bx > plate.half_width(bz) - 0.004: continue   # the bracket must hang under the plate
                     r = evaluate(rh, dl, B, full=False)
                     if not r or abs(r['end'] - PSI_STOW) > D(8): continue
                     r = evaluate(rh, dl, B)
