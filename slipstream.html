@@ -1950,8 +1950,7 @@ function ubProfile(z) {   // [x, y, edge] top centre -> bottom centre, mirrored,
 const ubSection = z => ubProfile(z);
 // is a body-frame point inside the shell's inner surface (outer minus wall)? returns penetration depth (>0 = outside)
 function ubOutside(x, y, z) {
-  if (z < UB.z0 + UB.wall) return UB.z0 + UB.wall - z;
-  if (z > UB.z1 - UB.wall) return z - (UB.z1 - UB.wall);
+  if (z < UB.z0 || z > UB.z1) return UB.wall + Math.max(UB.z0 - z, z - UB.z1) + 1e-6;   // beyond the nose or tail face
   const P = ubSection(z); let inside = false, dmin = Infinity;
   for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
     const [xi, yi] = P[i], [xj, yj] = P[j];
@@ -1959,7 +1958,50 @@ function ubOutside(x, y, z) {
     const ex = xj - xi, ey = yj - yi, t = clamp(((x - xi) * ex + (y - yi) * ey) / (ex * ex + ey * ey), 0, 1);
     dmin = Math.min(dmin, Math.hypot(x - xi - t * ex, y - yi - t * ey));
   }
-  return inside ? UB.wall - dmin : UB.wall + dmin;
+  return inside ? UB.wall - Math.min(dmin, z - UB.z0, UB.z1 - z) : UB.wall + dmin;   // the end faces count as walls too
+}
+// fold cavities: each arm root sweeps a sector about its hinge (9 to 45 deg, plus 1.1 deg either side); the shell is
+// opened over that sweep, arm half-width + 2 mm wide and from just above the belly floor to above the arm, with 4 mm
+// rounded edges. Signed distance, negative inside a cavity.
+const CAV = { w: 0.0185, y0: -0.0155, y1: 0.0225, rr: 0.004, da: 0.02 };
+function foldCavity(x, y, z) {
+  let f = Infinity;
+  const yc = (CAV.y0 + CAV.y1) / 2, hh = (CAV.y1 - CAV.y0) / 2;
+  for (const arm of ARMS) {
+    const dx = x - arm.side * GEO.hingeX, dz = z - arm.end * GEO.hingeZ, r = Math.hypot(dx, dz);
+    const ap = Math.atan2(arm.side * dx, arm.end * dz), lo = GEO.aFold - CAV.da, hi = GEO.aOpen + CAV.da;   // 0 = fore/aft, + = outboard
+    const da = ap < lo ? lo - ap : ap > hi ? ap - hi : 0, dperp = da >= Math.PI / 2 ? r : r * Math.sin(da);
+    const dp = dperp - (CAV.w - CAV.rr), dy = Math.abs(y - yc) - (hh - CAV.rr);
+    f = Math.min(f, Math.hypot(Math.max(dp, 0), Math.max(dy, 0)) + Math.min(Math.max(dp, dy), 0) - CAV.rr);
+  }
+  // leg-retraction rods: a 3.5 mm-radius slot along each rod's swept path
+  if (!ROD_SWEEP) ROD_SWEEP = ARMS.map(arm => { const B = legAnchor(arm, new V3()), T = [];
+    for (let k = 0; k <= 12; k++) { const a = lerp(GEO.aOpen, GEO.aFold, k / 12); T.push(armPoint(arm, a, legHornLocal(legPsi(arm, a), new V3()), new V3())); }
+    return { B, T }; });
+  for (const { B, T } of ROD_SWEEP) for (const t of T) {
+    const ex = t.x - B.x, ey = t.y - B.y, ez = t.z - B.z, u = clamp(((x - B.x) * ex + (y - B.y) * ey + (z - B.z) * ez) / (ex * ex + ey * ey + ez * ez), 0, 1);
+    f = Math.min(f, Math.hypot(x - B.x - u * ex, y - B.y - u * ey, z - B.z - u * ez) - 0.0035);
+  }
+  return f;
+}
+let ROD_SWEEP = null;
+// drop shell triangles inside a cavity; vertices of triangles that straddle the edge are slid onto it, so the cut is clean
+function cutCavities(pos, idx) {
+  const n = pos.length / 3, F = new Float32Array(n), snap = new Uint8Array(n), out = [];
+  for (let i = 0; i < n; i++) F[i] = foldCavity(pos[3 * i], pos[3 * i + 1], pos[3 * i + 2]);
+  for (let t = 0; t < idx.length; t += 3) {
+    const a = idx[t], b = idx[t + 1], c = idx[t + 2], ins = (F[a] < 0) + (F[b] < 0) + (F[c] < 0);
+    if (ins === 3) continue;
+    if (ins) [a, b, c].forEach(v => { if (F[v] < 0) snap[v] = 1; });
+    out.push(a, b, c);
+  }
+  const e = 1e-5;
+  for (let i = 0; i < n; i++) if (snap[i]) for (let it = 0; it < 4; it++) {
+    const x = pos[3 * i], y = pos[3 * i + 1], z = pos[3 * i + 2], f = foldCavity(x, y, z);
+    const gx = (foldCavity(x + e, y, z) - f) / e, gy = (foldCavity(x, y + e, z) - f) / e, gz = (foldCavity(x, y, z + e) - f) / e, gl = Math.hypot(gx, gy, gz) || 1;
+    pos[3 * i] -= gx / gl * f; pos[3 * i + 1] -= gy / gl * f; pos[3 * i + 2] -= gz / gl * f;
+  }
+  return out;
 }
 function unibodyGeometry() {
   const pos = [], col = [], idx = [], nu = 320;
@@ -1973,9 +2015,10 @@ function unibodyGeometry() {
     const c = pos.length / 3; pos.push(0, 0.012, z); col.push(0.97, 0.97, 0.97);
     for (let j = 0; j < nv; j++) { const a = ring * nv + j, b = ring * nv + (j + 1) % nv; flip ? idx.push(c, b, a) : idx.push(c, a, b); }
   });
+  const cut = cutCavities(pos, idx);
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  g.setIndex(idx); g.computeVertexNormals(); return g;
+  g.setIndex(cut); g.computeVertexNormals(); return g;
 }
 // arm: chamfered section, nearly full body depth at the root, tapering in plan and depth to the pod
 const ARM_PRO = (() => { const half = [[0, 1, 0], [0.8, 1, 0], [0.84, 0.99, 1], [0.985, 0.7, 1], [1, 0.64, 0], [1, -0.5, 0], [0.985, -0.58, 1], [0.86, -0.97, 1], [0.82, -1, 0], [0, -1, 0]];
@@ -2262,6 +2305,8 @@ const SHOTS = {
   look34: { env: 'studio', chassis: 'on', frames: 1, frame() { poseDrone(_o.set(0, 0.2, 0), QI, GEO.aOpen, 0, 0); look(0.62, 0.42, -0.78, 0, 0.17, 0, 30); } },
   lookside: { env: 'studio', chassis: 'on', frames: 1, frame() { poseDrone(_o.set(0, 0.14, 0), QI, GEO.aOpen, 0, 0); look(0.9, 0.16, -0.25, 0, 0.1, 0, 30); } },
   lookfold: { env: 'studio', chassis: 'on', frames: 1, frame() { poseDrone(_o.set(0, 0.5, 0), QI, GEO.aFold, 0, 0); look(0.55, 0.62, -0.62, 0, 0.47, 0, 32); } },
+  // fold cavity close-up: front-right shoulder, shell on, arm part-folded
+  cavity: { env: 'studio', chassis: 'on', frames: 1, frame() { poseDrone(_o.set(0, 0.25, 0), QI, 27 * DEG, 0, 0); look(0.36, 0.33, -0.3, 0.07, 0.25, -0.075, 26); } },
   linkage: { env: 'studio', chassis: 'off', frames: 240, frame(i) {
     const t = i / 30, f = ease((t - 1.0) / 0.6) * (1 - ease((t - 4.6) / 0.6));
     poseDrone(HOVER, QI, lerp(GEO.aOpen, GEO.aFold, f), 0, 1 / 30);
@@ -2350,6 +2395,27 @@ function internalParts() {
   return out;
 }
 window.__SS = {
+  foldClearance() {
+    const v = new V3(), res = [];
+    for (let deg = 45; deg >= 9; deg -= 2) {
+      poseDrone(new V3(), QI, deg * DEG, 0, 0); drone.root.updateMatrixWorld(true);
+      let worst = -1, who = '';
+      const parts = [];
+      drone.arms.forEach(pv => pv.traverse(m => { if (m.isMesh && /^(ArmShell_\d+_body|ArmShell_\d+_pod|Leg_)/.test(m.name)) parts.push(m); }));
+      drone.legRods.forEach(R => parts.push(R.rod));
+      const inv = drone.body.matrixWorld.clone().invert();
+      parts.forEach(m => { const p = m.geometry.attributes.position;
+        for (let i = 0; i < p.count; i++) {
+          v.fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld).applyMatrix4(inv);
+          const o = ubOutside(v.x, v.y, v.z);                 // > wall: outside the shell entirely
+          if (o >= UB.wall || foldCavity(v.x, v.y, v.z) < 0) continue;
+          const d = UB.wall - o;                              // depth into the shell from its outer surface
+          if (d > worst) { worst = d; who = m.name; }
+        } });
+      res.push([deg, worst < 0 ? 'clear' : +(worst * 1000).toFixed(1) + ' mm ' + who]);
+    }
+    return res;
+  },
   fit() {
     poseDrone(new V3(), QI, GEO.aOpen, 0, 0); drone.root.updateMatrixWorld(true);
     const v = new V3(), worst = {};
