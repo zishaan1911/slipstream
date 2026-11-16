@@ -244,11 +244,11 @@ LEVELS.forEach(L => {
 // knife-edge plan
 // ~1.4 g pop-up; tuned for the 1.40 kg unibody on 2807 1300 KV motors, rotors braked to a stop through the slot
 // (25-27 mm clearance at 100/50/20 % packs)
-let T_ROLL = 0.30, T_POP = 0.8, ROLL = Math.PI / 2;
+let T_ROLL = 0.30, T_POP = 0.8, ROLL = -Math.PI / 2;   // rolls right: the deck (and its livery) faces +x
 // extents with the arms folded (legs stowed): mocap marker on top, gimbal camera underneath; legs deployed set the ground height
 const BODY_TOP = 0.0505, BODY_BOT = -0.082, GROUND_BOT = -(0.017 + 0.128 * Math.cos(20 * DEG));
 let KNIFE_XCOMP = 0.12; // pre-offset against the sideways impulse of the differential-thrust roll-in
-const knifeX = () => (BODY_TOP + BODY_BOT) / 2 + KNIFE_XCOMP; // centre the rolled silhouette in the slot
+const knifeX = () => Math.sign(ROLL) * ((BODY_TOP + BODY_BOT) / 2 + KNIFE_XCOMP); // centre the rolled silhouette in the slot
 const TAIL_CLEAR = HALF_LEN_FOLD + WALL_T / 2 + 0.03;
 let APEX_BIAS = -0.12;
 const knifeLowY = L => L.gy + APEX_BIAS - 0.5 * G * T_ROLL * T_ROLL - (G * T_ROLL) * T_POP / 2;
